@@ -121,6 +121,33 @@
     border-color: var(--accent-green) !important;
 }
 
+.form-label {
+    display: block;
+    font-size: 0.8125rem;
+    font-weight: 500;
+    color: var(--text-secondary);
+    margin-bottom: 8px;
+}
+
+.login-footer {
+    text-align: center;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    margin-top: var(--spacing-xl);
+    line-height: 1.5;
+}
+
+.login-footer a {
+    color: var(--text-primary);
+    text-decoration: none;
+    transition: color var(--transition-fast);
+}
+
+.login-footer a:hover {
+    color: var(--accent-green);
+    text-decoration: underline;
+}
+
 .login-alert {
     padding: var(--spacing-md);
     border-radius: var(--radius-md);

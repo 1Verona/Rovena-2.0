@@ -5,7 +5,7 @@ import {
     signInWithPopup,
 } from 'firebase/auth';
 import { auth, googleProvider } from '../services/firebase';
-import { LogIn, UserPlus, Eye, EyeOff } from 'lucide-react';
+import { Eye, EyeOff } from 'lucide-react';
 import '../index.css';
 import './Login.css';
 
@@ -144,11 +144,11 @@ export function Login({ onAuthSuccess }: LoginProps) {
                                 />
                                 <button
                                     type="button"
-                                    className="password-toggle-btn"
+                                    className="password-toggle"
                                     onClick={() => setShowPassword(!showPassword)}
                                     tabIndex={-1}
                                 >
-                                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                                    {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
                                 </button>
                             </div>
                         </div>
@@ -167,11 +167,11 @@ export function Login({ onAuthSuccess }: LoginProps) {
                                     />
                                     <button
                                         type="button"
-                                        className="password-toggle-btn"
+                                        className="password-toggle"
                                         onClick={() => setShowConfirmPassword(!showConfirmPassword)}
                                         tabIndex={-1}
                                     >
-                                        {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                                        {showConfirmPassword ? <EyeOff size={20} /> : <Eye size={20} />}
                                     </button>
                                 </div>
                             </div>
@@ -185,15 +185,9 @@ export function Login({ onAuthSuccess }: LoginProps) {
                             {loading ? (
                                 <span className="spinner" />
                             ) : isLogin ? (
-                                <>
-                                    <LogIn size={18} />
-                                    Entrar
-                                </>
+                                'Entrar'
                             ) : (
-                                <>
-                                    <UserPlus size={18} />
-                                    Criar Conta
-                                </>
+                                'Criar Conta'
                             )}
                         </button>
                     </form>

@@ -3,6 +3,7 @@ import { useLocation } from 'react-router-dom';
 import { Send, MessageSquare, AlertCircle } from 'lucide-react';
 import { sendChatMessage, getUserTokens } from '../services/firebase';
 import { getAuth } from 'firebase/auth';
+import { LocalStorageService } from '../services/localStorage';
 import './Chats.css';
 
 interface Message {
@@ -20,11 +21,13 @@ export function Chats() {
     const [tokensUsed, setTokensUsed] = useState(0);
     const [tokensLimit, setTokensLimit] = useState(10000); // Default placeholder
     const [error, setError] = useState<string | null>(null);
+    const [currentChatId, setCurrentChatId] = useState<string | null>(null);
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const auth = getAuth();
     const user = auth.currentUser;
 
     const initialMessage = location.state?.initialMessage;
+    const restoredChat = location.state?.restoredChat;
 
     // Load initial tokens info
     useEffect(() => {
@@ -33,8 +36,6 @@ export function Chats() {
                 const result = await getUserTokens();
                 const data = result.data as any;
                 setTokensUsed(data.tokensUsed || 0);
-                // Note: Ideally getUserTokens or checkSubscription should return limit too.
-                // For now, limits are hardcoded in backend, we just track usage.
             } catch (err) {
                 console.error("Failed to load tokens", err);
             }
@@ -42,14 +43,46 @@ export function Chats() {
         loadTokens();
     }, []);
 
-    // Handle initial message from Home
+    const processedInitialMessage = useRef(false);
+
+    // Handle initial message or restored chat
     useEffect(() => {
-        if (initialMessage && messages.length === 0) {
+        if (restoredChat) {
+            setMessages(restoredChat.messages);
+            setCurrentChatId(restoredChat.id);
+            // Clear location state
+            window.history.replaceState({}, document.title);
+        } else if (initialMessage && messages.length === 0 && !processedInitialMessage.current) {
+            processedInitialMessage.current = true;
             handleSendMessage(initialMessage);
-            // Clear location state to prevent resending on refresh
             window.history.replaceState({}, document.title);
         }
-    }, [initialMessage]);
+    }, [initialMessage, restoredChat]);
+
+    // Auto-save logic
+    useEffect(() => {
+        if (messages.length > 0) {
+            saveCurrentChat();
+        }
+    }, [messages]);
+
+    const saveCurrentChat = () => {
+        if (messages.length === 0) return;
+
+        const chatId = currentChatId || Date.now().toString();
+        if (!currentChatId) setCurrentChatId(chatId);
+
+        // Simple title generation based on first message
+        const title = messages[0]?.content.slice(0, 30) + (messages[0]?.content.length > 30 ? '...' : '') || 'Nova Conversa';
+
+        LocalStorageService.saveItem({
+            id: chatId,
+            type: 'chat',
+            createdAt: Date.now(),
+            title,
+            messages
+        });
+    };
 
     const scrollToBottom = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -133,7 +166,7 @@ export function Chats() {
                     Chat Inteligente
                 </div>
                 <div className="chat-token-info">
-                    <span>Tokens Usados: {tokensUsed.toLocaleString()}</span>
+                    <span>Tokens Usados: {tokensUsed.toLocaleString('pt-BR')}</span>
                     {error && <span style={{ color: 'var(--accent-red)', display: 'flex', alignItems: 'center', gap: 4 }}><AlertCircle size={14} /> {error}</span>}
                 </div>
             </header>
