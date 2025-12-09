@@ -1,3 +1,4 @@
+import { Link, useLocation } from 'react-router-dom';
 import {
     Home,
     MessageSquare,
@@ -13,45 +14,37 @@ import './Sidebar.css';
 interface NavItem {
     icon: React.ElementType;
     label: string;
-    page: string;
+    path: string;
 }
 
 const mainNavItems: NavItem[] = [
-    { icon: Home, label: 'Home', page: 'home' },
-    { icon: MessageSquare, label: 'Chats', page: 'chats' },
-    { icon: Image, label: 'Images', page: 'images' },
-    { icon: Archive, label: 'Archives', page: 'archives' },
-    { icon: BarChart3, label: 'Charts', page: 'charts' },
-    { icon: Presentation, label: 'Presentations', page: 'presentations' },
+    { icon: Home, label: 'Home', path: '/' },
+    { icon: MessageSquare, label: 'Chats', path: '/chats' },
+    { icon: Image, label: 'Images', path: '/images' },
+    { icon: Archive, label: 'Archives', path: '/archives' },
+    { icon: BarChart3, label: 'Charts', path: '/charts' },
+    { icon: Presentation, label: 'Presentations', path: '/presentations' },
 ];
 
 const bottomNavItems: NavItem[] = [
-    { icon: Settings, label: 'Settings', page: 'settings' },
+    { icon: Settings, label: 'Settings', path: '/settings' },
 ];
 
 interface SidebarProps {
     userEmail?: string;
     userPlan?: 'free' | 'plus';
     onLogout?: () => void;
-    currentPage?: string;
-    onNavigate?: (page: string) => void;
 }
 
 export function Sidebar({
     userEmail,
     userPlan = 'free',
-    onLogout,
-    currentPage = 'home',
-    onNavigate,
+    onLogout
 }: SidebarProps) {
+    const location = useLocation();
+
     const getInitials = (email: string) => {
         return email.charAt(0).toUpperCase();
-    };
-
-    const handleNav = (page: string) => {
-        if (onNavigate) {
-            onNavigate(page);
-        }
     };
 
     return (
@@ -64,26 +57,26 @@ export function Sidebar({
             <nav className="sidebar-nav">
                 <span className="nav-section">Menu</span>
                 {mainNavItems.map((item) => (
-                    <button
-                        key={item.page}
-                        onClick={() => handleNav(item.page)}
-                        className={`nav-item ${currentPage === item.page ? 'active' : ''}`}
+                    <Link
+                        key={item.path}
+                        to={item.path}
+                        className={`nav-item ${location.pathname === item.path ? 'active' : ''}`}
                     >
                         <item.icon className="nav-icon" />
                         <span>{item.label}</span>
-                    </button>
+                    </Link>
                 ))}
 
                 <span className="nav-section">System</span>
                 {bottomNavItems.map((item) => (
-                    <button
-                        key={item.page}
-                        onClick={() => handleNav(item.page)}
-                        className={`nav-item ${currentPage === item.page ? 'active' : ''}`}
+                    <Link
+                        key={item.path}
+                        to={item.path}
+                        className={`nav-item ${location.pathname === item.path ? 'active' : ''}`}
                     >
                         <item.icon className="nav-icon" />
                         <span>{item.label}</span>
-                    </button>
+                    </Link>
                 ))}
             </nav>
 

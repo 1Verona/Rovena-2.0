@@ -14,7 +14,6 @@
 .sidebar-header {
     padding: var(--spacing-lg);
     padding-top: 40px;
-    /* Space for traffic lights on macOS */
     display: flex;
     align-items: center;
     gap: var(--spacing-md);

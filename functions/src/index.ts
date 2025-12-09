@@ -6,15 +6,26 @@ import OpenAI from 'openai';
 admin.initializeApp();
 const db = admin.firestore();
 
-// Initialize Stripe
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '', {
-    apiVersion: '2023-10-16',
-});
+// Lazy verification singleton helpers
+let stripeInstance: Stripe | null = null;
+const getStripe = () => {
+    if (!stripeInstance) {
+        stripeInstance = new Stripe(process.env.STRIPE_SECRET_KEY || '', {
+            apiVersion: '2023-10-16',
+        });
+    }
+    return stripeInstance;
+};
 
-// Initialize OpenAI
-const openai = new OpenAI({
-    apiKey: process.env.OPENAI_API_KEY,
-});
+let openaiInstance: OpenAI | null = null;
+const getOpenAI = () => {
+    if (!openaiInstance) {
+        openaiInstance = new OpenAI({
+            apiKey: process.env.OPENAI_API_KEY,
+        });
+    }
+    return openaiInstance;
+};
 
 // Stripe Product IDs
 const PRODUCT_IDS = {
@@ -32,79 +43,85 @@ const TOKEN_LIMITS = {
 /**
  * Check user subscription status via Stripe
  */
-export const checkSubscription = functions.https.onCall(async (data, context) => {
-    if (!context.auth) {
-        throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated');
-    }
-
-    const email = context.auth.token.email;
-    if (!email) {
-        throw new functions.https.HttpsError('invalid-argument', 'User email not found');
-    }
-
-    try {
-        // Search for customer by email
-        const customers = await stripe.customers.list({
-            email: email,
-            limit: 1,
-        });
-
-        if (customers.data.length === 0) {
-            return { plan: 'free', tokensLimit: TOKEN_LIMITS.free };
+export const checkSubscription = functions
+    .runWith({ secrets: ["STRIPE_SECRET_KEY"] })
+    .https.onCall(async (data, context) => {
+        if (!context.auth) {
+            throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated');
         }
 
-        const customer = customers.data[0];
+        const email = context.auth.token.email;
+        if (!email) {
+            throw new functions.https.HttpsError('invalid-argument', 'User email not found');
+        }
 
-        // Get active subscriptions
-        const subscriptions = await stripe.subscriptions.list({
-            customer: customer.id,
-            status: 'active',
-            limit: 10,
-        });
+        try {
+            const stripe = getStripe();
+            // Search for customer by email
+            const customers = await stripe.customers.list({
+                email: email,
+                limit: 1,
+            });
 
-        // Check if any subscription matches our product IDs
-        for (const subscription of subscriptions.data) {
-            for (const item of subscription.items.data) {
-                const productId = item.price.product as string;
-                if (Object.values(PRODUCT_IDS).includes(productId)) {
-                    return {
-                        plan: 'plus',
-                        tokensLimit: TOKEN_LIMITS.plus,
-                        subscriptionId: subscription.id,
-                        productId: productId,
-                    };
+            if (customers.data.length === 0) {
+                return { plan: 'free', tokensLimit: TOKEN_LIMITS.free };
+            }
+
+            const customer = customers.data[0];
+
+            // Get active subscriptions
+            const subscriptions = await stripe.subscriptions.list({
+                customer: customer.id,
+                status: 'active',
+                limit: 10,
+            });
+
+            // Check if any subscription matches our product IDs
+            for (const subscription of subscriptions.data) {
+                for (const item of subscription.items.data) {
+                    const productId = item.price.product as string;
+                    if (Object.values(PRODUCT_IDS).includes(productId)) {
+                        return {
+                            plan: 'plus',
+                            tokensLimit: TOKEN_LIMITS.plus,
+                            subscriptionId: subscription.id,
+                            productId: productId,
+                        };
+                    }
                 }
             }
-        }
 
-        return { plan: 'free', tokensLimit: TOKEN_LIMITS.free };
-    } catch (error) {
-        console.error('Error checking subscription:', error);
-        throw new functions.https.HttpsError('internal', 'Error checking subscription');
-    }
-});
+            return { plan: 'free', tokensLimit: TOKEN_LIMITS.free };
+        } catch (error) {
+            console.error('Error checking subscription:', error);
+            throw new functions.https.HttpsError('internal', 'Error checking subscription');
+        }
+    });
 
 /**
  * Cancel user subscription
  */
-export const cancelSubscription = functions.https.onCall(async (data, context) => {
-    if (!context.auth) {
-        throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated');
-    }
+export const cancelSubscription = functions
+    .runWith({ secrets: ["STRIPE_SECRET_KEY"] })
+    .https.onCall(async (data, context) => {
+        if (!context.auth) {
+            throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated');
+        }
 
-    const { subscriptionId } = data;
-    if (!subscriptionId) {
-        throw new functions.https.HttpsError('invalid-argument', 'Subscription ID required');
-    }
+        const { subscriptionId } = data;
+        if (!subscriptionId) {
+            throw new functions.https.HttpsError('invalid-argument', 'Subscription ID required');
+        }
 
-    try {
-        await stripe.subscriptions.cancel(subscriptionId);
-        return { success: true };
-    } catch (error) {
-        console.error('Error canceling subscription:', error);
-        throw new functions.https.HttpsError('internal', 'Error canceling subscription');
-    }
-});
+        try {
+            const stripe = getStripe();
+            await stripe.subscriptions.cancel(subscriptionId);
+            return { success: true };
+        } catch (error) {
+            console.error('Error canceling subscription:', error);
+            throw new functions.https.HttpsError('internal', 'Error canceling subscription');
+        }
+    });
 
 /**
  * Get user token usage
@@ -142,65 +159,95 @@ export const getUserTokens = functions.https.onCall(async (data, context) => {
 /**
  * Send chat message via OpenAI
  */
-export const sendChatMessage = functions.https.onCall(async (data, context) => {
-    if (!context.auth) {
-        throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated');
-    }
-
-    const userId = context.auth.uid;
-    const { messages, customApiKey } = data;
-
-    if (!messages || !Array.isArray(messages)) {
-        throw new functions.https.HttpsError('invalid-argument', 'Messages array required');
-    }
-
-    try {
-        // Get user data to check token limit
-        const userDoc = await db.collection('users').doc(userId).get();
-        const userData = userDoc.data() || { tokensUsed: 0 };
-
-        // Check subscription
-        const subscriptionResult = await checkSubscription(null, context);
-        const tokensLimit = subscriptionResult.tokensLimit || TOKEN_LIMITS.free;
-
-        if (userData.tokensUsed >= tokensLimit) {
-            throw new functions.https.HttpsError('resource-exhausted', 'Token limit reached');
+export const sendChatMessage = functions
+    .runWith({ secrets: ["OPENAI_API_KEY", "STRIPE_SECRET_KEY"] })
+    .https.onCall(async (data, context) => {
+        if (!context.auth) {
+            throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated');
         }
 
-        // Use custom API key if provided, otherwise use default
-        const client = customApiKey
-            ? new OpenAI({ apiKey: customApiKey })
-            : openai;
+        const userId = context.auth.uid;
+        const { messages, customApiKey } = data;
 
-        const response = await client.chat.completions.create({
-            model: 'gpt-4-turbo-preview',
-            messages: messages,
-            max_tokens: 4096,
-        });
-
-        const usage = response.usage;
-        const totalTokens = usage?.total_tokens || 0;
-
-        // Update user token usage
-        await db.collection('users').doc(userId).update({
-            tokensUsed: admin.firestore.FieldValue.increment(totalTokens),
-            messagesCount: admin.firestore.FieldValue.increment(1),
-            interactionsCount: admin.firestore.FieldValue.increment(1),
-        });
-
-        return {
-            message: response.choices[0].message,
-            tokensUsed: totalTokens,
-            remainingTokens: tokensLimit - (userData.tokensUsed + totalTokens),
-        };
-    } catch (error: any) {
-        console.error('Error sending chat message:', error);
-        if (error instanceof functions.https.HttpsError) {
-            throw error;
+        if (!messages || !Array.isArray(messages)) {
+            throw new functions.https.HttpsError('invalid-argument', 'Messages array required');
         }
-        throw new functions.https.HttpsError('internal', error.message || 'Error processing message');
-    }
-});
+
+        try {
+            // Get user data to check token limit
+            const userDoc = await db.collection('users').doc(userId).get();
+            const userData = userDoc.data() || { tokensUsed: 0 }; // Default if user doc missing
+
+            // Check subscription locally inside to avoid extra HTTP call overhead if possible,
+            // but for now calling the internal logic is safer to reuse code.
+            // Or better: Reimplement logic here to avoid self-call HTTP overhead/latency issues in Functions.
+            // Let's reuse logic by calling getStripe() directly if needed, but for simplicity let's stick to logic below.
+
+            // We'll reimplement simple check here to avoid "calling a function from a function" latency via HTTP
+            // Actually, let's just use a hard limit for free/plus based on a simplistic check or trust the client? NO.
+            // We MUST verify plan.
+
+            let tokensLimit = TOKEN_LIMITS.free;
+            const stripe = getStripe();
+            const email = context.auth.token.email;
+
+            if (email) {
+                const customers = await stripe.customers.list({ email: email, limit: 1 });
+                if (customers.data.length > 0) {
+                    const subs = await stripe.subscriptions.list({
+                        customer: customers.data[0].id,
+                        status: 'active',
+                        limit: 5
+                    });
+                    for (const s of subs.data) {
+                        for (const i of s.items.data) {
+                            if (Object.values(PRODUCT_IDS).includes(i.price.product as string)) {
+                                tokensLimit = TOKEN_LIMITS.plus;
+                            }
+                        }
+                    }
+                }
+            }
+
+            if ((userData.tokensUsed || 0) >= tokensLimit) {
+                throw new functions.https.HttpsError('resource-exhausted', `Token limit reached for your plan (${tokensLimit}). Please upgrade.`);
+            }
+
+            // Use custom API key if provided, otherwise use default
+            const client = customApiKey
+                ? new OpenAI({ apiKey: customApiKey })
+                : getOpenAI();
+
+            const response = await client.chat.completions.create({
+                model: 'gpt-4-turbo-preview',
+                messages: messages,
+                max_tokens: 4096,
+            });
+
+            const usage = response.usage;
+            const totalTokens = usage?.total_tokens || 0;
+
+            // Update user token usage
+            await db.collection('users').doc(userId).set({
+                tokensUsed: admin.firestore.FieldValue.increment(totalTokens),
+                messagesCount: admin.firestore.FieldValue.increment(1),
+                interactionsCount: admin.firestore.FieldValue.increment(1),
+                lastUpdated: admin.firestore.FieldValue.serverTimestamp()
+            }, { merge: true });
+
+            return {
+                message: response.choices[0].message,
+                tokensUsed: totalTokens,
+                remainingTokens: Math.max(0, tokensLimit - ((userData.tokensUsed || 0) + totalTokens)),
+            };
+        } catch (error: any) {
+            console.error('Error sending chat message:', error);
+            if (error instanceof functions.https.HttpsError) {
+                throw error;
+            }
+            throw new functions.https.HttpsError('internal', error.message || 'Error processing message');
+        }
+    });
 
 /**
  * Reset tokens monthly (scheduled function)

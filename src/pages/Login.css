@@ -4,10 +4,10 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    background: var(--bg-primary, #0a0a0a);
-    padding: var(--spacing-lg, 24px);
-    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    color: var(--text-primary, #ffffff);
+    background: var(--bg-primary);
+    padding: var(--spacing-lg);
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    color: var(--text-primary);
 }
 
 .login-container {
@@ -38,6 +38,7 @@
 .login-title {
     font-size: 1.75rem;
     font-weight: 700;
+    color: var(--text-primary);
     margin-bottom: var(--spacing-xs);
 }
 
@@ -55,10 +56,10 @@
 
 .login-tabs {
     display: flex;
-    margin-bottom: var(--spacing-lg);
     background: var(--bg-tertiary);
     border-radius: var(--radius-md);
     padding: 4px;
+    margin-bottom: var(--spacing-lg);
 }
 
 .login-tab {
@@ -89,69 +90,49 @@
     gap: var(--spacing-md);
 }
 
-.form-group {
-    display: flex;
-    flex-direction: column;
-    gap: var(--spacing-xs);
-}
-
-.form-label {
-    font-size: 0.8125rem;
-    font-weight: 500;
-    color: var(--text-secondary);
-}
-
 .form-input {
-    padding: var(--spacing-md);
+    width: 100%;
+    padding: 12px;
     background: var(--bg-tertiary);
     border: 1px solid var(--border-color);
     border-radius: var(--radius-md);
     color: var(--text-primary);
     font-size: 0.9375rem;
     transition: all var(--transition-fast);
+    box-sizing: border-box;
 }
 
 .form-input:focus {
-    outline: none;
     border-color: var(--accent-green);
-    box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.1);
+    outline: none;
+    box-shadow: 0 0 0 2px rgba(34, 197, 94, 0.1);
 }
 
-.form-input::placeholder {
-    color: var(--text-muted);
+.login-alert {
+    padding: var(--spacing-md);
+    border-radius: var(--radius-md);
+    font-size: 0.875rem;
+    margin-bottom: var(--spacing-md);
 }
 
-.form-input.error {
-    border-color: var(--accent-red);
-}
-
-.form-error {
-    font-size: 0.75rem;
+.login-alert.error {
+    background: rgba(239, 68, 68, 0.1);
+    border: 1px solid rgba(239, 68, 68, 0.2);
     color: var(--accent-red);
-    margin-top: var(--spacing-xs);
 }
 
 .login-button {
     width: 100%;
-    padding: var(--spacing-md);
-    background: var(--gradient-green);
+    padding: 12px;
+    background: var(--gradient-accent);
     border: none;
     border-radius: var(--radius-md);
     color: #000;
     font-size: 1rem;
     font-weight: 600;
     cursor: pointer;
-    transition: all var(--transition-fast);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: var(--spacing-sm);
     margin-top: var(--spacing-sm);
-}
-
-.login-button:hover:not(:disabled) {
-    transform: translateY(-1px);
-    box-shadow: var(--shadow-glow);
+    transition: opacity var(--transition-fast);
 }
 
 .login-button:disabled {
@@ -178,7 +159,7 @@
 
 .google-button {
     width: 100%;
-    padding: var(--spacing-md);
+    padding: 12px;
     background: var(--bg-tertiary);
     border: 1px solid var(--border-color);
     border-radius: var(--radius-md);
@@ -186,70 +167,18 @@
     font-size: 0.9375rem;
     font-weight: 500;
     cursor: pointer;
-    transition: all var(--transition-fast);
     display: flex;
     align-items: center;
     justify-content: center;
     gap: var(--spacing-sm);
+    transition: background var(--transition-fast);
 }
 
 .google-button:hover {
-    background: var(--bg-hover);
-    border-color: var(--border-hover);
+    background: var(--bg-secondary);
 }
 
 .google-icon {
     width: 20px;
     height: 20px;
-}
-
-.login-alert {
-    padding: var(--spacing-md);
-    border-radius: var(--radius-md);
-    font-size: 0.875rem;
-    margin-bottom: var(--spacing-md);
-}
-
-.login-alert.error {
-    background: rgba(239, 68, 68, 0.1);
-    border: 1px solid rgba(239, 68, 68, 0.2);
-    color: var(--accent-red);
-}
-
-.login-alert.success {
-    background: rgba(34, 197, 94, 0.1);
-    border: 1px solid rgba(34, 197, 94, 0.2);
-    color: var(--accent-green);
-}
-
-.login-footer {
-    text-align: center;
-    margin-top: var(--spacing-lg);
-    color: var(--text-muted);
-    font-size: 0.8125rem;
-}
-
-.login-footer a {
-    color: var(--accent-green);
-    text-decoration: none;
-}
-
-.login-footer a:hover {
-    text-decoration: underline;
-}
-
-/* Loading spinner */
-.spinner {
-    width: 20px;
-    height: 20px;
-    border: 2px solid transparent;
-    border-top-color: currentColor;
-    border-radius: 50%;
-    animation: spin 0.6s linear infinite;
-}
-
-@keyframes spin {
-    to {
-        transform: rotate(360deg);
-    }
 }
