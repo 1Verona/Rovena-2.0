@@ -23,6 +23,7 @@ import {
     Layers,
     ChevronUp,
     ChevronDown,
+
 } from 'lucide-react';
 import './Canva.css';
 
@@ -177,6 +178,10 @@ export function Canva() {
     const [laserStrokes, setLaserStrokes] = useState<LaserStroke[]>([]);
     const [currentLaserStroke, setCurrentLaserStroke] = useState<LaserStroke | null>(null);
 
+    // Eraser state
+    const [eraserPath, setEraserPath] = useState<{ x: number, y: number, timestamp: number }[] | null>(null);
+    const [erasedIds, setErasedIds] = useState<Set<string>>(new Set());
+
     // Get the first selected element for the floating panel
     const selectedElement = elements.find(el => selectedElements.includes(el.id));
 
@@ -194,6 +199,93 @@ export function Canva() {
             y: (e.clientY - rect.top - offset.y) / scale
         };
     }, [offset, scale]);
+
+    // Helper: Check if point is inside element
+    const isPointInElement = useCallback((point: Point, el: CanvasElement): boolean => {
+        const cos = Math.cos(-el.rotation);
+        const sin = Math.sin(-el.rotation);
+        const cx = el.x + el.width / 2;
+        const cy = el.y + el.height / 2;
+        const dx = point.x - cx;
+        const dy = point.y - cy;
+        const localX = dx * cos - dy * sin + el.width / 2;
+        const localY = dx * sin + dy * cos + el.height / 2;
+
+        return localX >= 0 && localX <= el.width && localY >= 0 && localY <= el.height;
+    }, []);
+
+    // Helper: Calculate text height with wrapping
+    const calculateTextHeight = useCallback((ctx: CanvasRenderingContext2D, text: string, maxWidth: number, fontSize: number, fontFamily: string): number => {
+        ctx.font = `${fontSize}px ${fontFamily}`;
+        const lineHeight = fontSize * 1.2;
+
+
+        // If no text, return min height
+        if (!text) return lineHeight;
+
+        // Handle manual newlines first
+        const paragraphs = text.split('\n');
+        let totalHeight = 0;
+
+        paragraphs.forEach((paragraph) => {
+            const words = paragraph.split(' ');
+            let line = '';
+            let linesInParagraph = 1;
+
+            if (paragraph === '') {
+                // Empty line
+                linesInParagraph = 1;
+            } else {
+                for (let n = 0; n < words.length; n++) {
+                    const testLine = line + words[n] + ' ';
+                    const metrics = ctx.measureText(testLine);
+                    const testWidth = metrics.width;
+
+                    if (testWidth > maxWidth && n > 0) {
+                        line = words[n] + ' ';
+                        linesInParagraph++;
+                    } else {
+                        line = testLine;
+                    }
+                }
+            }
+            totalHeight += linesInParagraph * lineHeight;
+        });
+
+        return Math.max(totalHeight, lineHeight);
+    }, []);
+
+    // Helper: Wrap text into lines for drawing
+    const getWrappedTextLines = useCallback((ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string[] => {
+
+        const lines: string[] = [];
+        const paragraphs = text.split('\n');
+
+        paragraphs.forEach(paragraph => {
+            if (paragraph === '') {
+                lines.push('');
+                return;
+            }
+
+            const words = paragraph.split(' ');
+            let line = '';
+
+            for (let n = 0; n < words.length; n++) {
+                const testLine = line + words[n] + ' ';
+                const metrics = ctx.measureText(testLine);
+                const testWidth = metrics.width;
+                if (testWidth > maxWidth && n > 0) {
+                    lines.push(line);
+                    line = words[n] + ' ';
+                } else {
+                    line = testLine;
+                }
+            }
+            lines.push(line);
+        });
+
+        return lines;
+    }, []);
 
     // Laser pointer functions
     const addLaserPoint = useCallback((point: Point) => {
@@ -486,7 +578,11 @@ export function Canva() {
         ctx.rotate(element.rotation);
         ctx.translate(-cx, -cy);
 
-        ctx.globalAlpha = element.opacity;
+        if (erasedIds.has(element.id)) {
+            ctx.globalAlpha = element.opacity * 0.5;
+        } else {
+            ctx.globalAlpha = element.opacity;
+        }
         ctx.strokeStyle = element.stroke;
         ctx.fillStyle = element.fill;
         ctx.lineWidth = element.strokeWidth;
@@ -537,6 +633,13 @@ export function Canva() {
                     }
                     ctx.strokeRect(x, y, w, h);
                 }
+                if (element.text) {
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillStyle = element.stroke; // Use stroke color for text
+                    ctx.font = `${element.fontSize || 20}px ${element.fontFamily || 'Inter, sans-serif'}`;
+                    ctx.fillText(element.text || '', x + w / 2, y + h / 2);
+                }
                 break;
 
             case 'ellipse':
@@ -546,6 +649,13 @@ export function Canva() {
                     ctx.fill();
                 }
                 ctx.stroke();
+                if (element.text) {
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillStyle = element.stroke;
+                    ctx.font = `${element.fontSize || 20}px ${element.fontFamily || 'Inter, sans-serif'}`;
+                    ctx.fillText(element.text || '', x + w / 2, y + h / 2);
+                }
                 break;
 
             case 'diamond':
@@ -559,6 +669,13 @@ export function Canva() {
                     ctx.fill();
                 }
                 ctx.stroke();
+                if (element.text) {
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillStyle = element.stroke;
+                    ctx.font = `${element.fontSize || 20}px ${element.fontFamily || 'Inter, sans-serif'}`;
+                    ctx.fillText(element.text || '', x + w / 2, y + h / 2);
+                }
                 break;
 
             case 'arrow':
@@ -645,7 +762,14 @@ export function Canva() {
             case 'text':
                 ctx.font = `${element.fontSize || 20}px ${element.fontFamily || 'Inter, sans-serif'}`;
                 ctx.fillStyle = element.stroke;
-                ctx.fillText(element.text || 'Texto', x, y + (element.fontSize || 20));
+                ctx.textBaseline = 'top'; // Easier for multiline
+
+                const lines = getWrappedTextLines(ctx, element.text || 'Texto', w);
+                const lineHeight = (element.fontSize || 20) * 1.2;
+
+                lines.forEach((line, i) => {
+                    ctx.fillText(line, x, y + i * lineHeight);
+                });
                 break;
 
             case 'pencil':
@@ -846,7 +970,13 @@ export function Canva() {
             ctx.stroke();
         }
 
-        elements.forEach(element => drawElement(ctx, element));
+        elements.forEach(element => {
+            if (erasedIds.has(element.id)) {
+                drawElement(ctx, { ...element, opacity: element.opacity * 0.3 });
+            } else {
+                drawElement(ctx, element);
+            }
+        });
 
         if (currentElement) {
             drawElement(ctx, currentElement);
@@ -945,8 +1075,36 @@ export function Canva() {
             ctx.shadowBlur = 0;
         });
 
+        // Draw Eraser Trail
+        if (eraserPath && eraserPath.length > 1) {
+            const now = Date.now();
+            const visibleEraserPoints = eraserPath.filter(p => now - p.timestamp < 500);
+
+            if (visibleEraserPoints.length > 1) {
+                ctx.lineCap = 'round';
+                ctx.lineJoin = 'round';
+                ctx.shadowColor = 'rgba(255, 255, 255, 0.8)';
+                ctx.shadowBlur = 10;
+
+                // Draw white core with pinkish glow
+                ctx.strokeStyle = 'rgba(255, 192, 203, 0.8)';
+
+                for (let i = 1; i < visibleEraserPoints.length; i++) {
+                    ctx.beginPath();
+                    // Make it vary in width based on pressure or just static for now, maybe taper at ends?
+                    // Let's use simple line for now or tapered
+                    const age = now - visibleEraserPoints[i].timestamp;
+                    ctx.lineWidth = Math.max(2, 10 * (1 - age / 500));
+                    ctx.moveTo(visibleEraserPoints[i - 1].x, visibleEraserPoints[i - 1].y);
+                    ctx.lineTo(visibleEraserPoints[i].x, visibleEraserPoints[i].y);
+                    ctx.stroke();
+                }
+                ctx.shadowBlur = 0;
+            }
+        }
+
         ctx.restore();
-    }, [elements, currentElement, offset, scale, drawElement, selectionBox, laserStrokes, currentLaserStroke, hoveredLock]);
+    }, [elements, currentElement, offset, scale, drawElement, selectionBox, laserStrokes, currentLaserStroke, hoveredLock, eraserPath, erasedIds, selectedElements]);
 
     // Mouse down handler
 
@@ -1103,6 +1261,21 @@ export function Canva() {
                 // Laser pointer - temporary strokes
                 setInteractionMode('drawing');
                 addLaserPoint(point);
+            } else if (selectedTool === 'eraser') {
+                setInteractionMode('drawing');
+                const newPoint = { x: point.x, y: point.y, timestamp: Date.now() };
+                setEraserPath([newPoint]);
+
+                // Check initial collision
+                elements.forEach(el => {
+                    if (!el.locked && isPointInElement(point, el)) {
+                        setErasedIds(prev => {
+                            const newSet = new Set(prev);
+                            newSet.add(el.id);
+                            return newSet;
+                        });
+                    }
+                });
             }
         }
     }, [selectedTool, elements, selectedElements, getCanvasCoords, duplicateElements, getResizeHandle, isOnRotationHandle, getLineHandle]);
@@ -1233,6 +1406,15 @@ export function Canva() {
                         }));
                     }
 
+                    // Recalculate height for text
+                    if (element.type === 'text') {
+                        const ctx = canvasRef.current?.getContext('2d');
+                        if (ctx) {
+                            const calculatedHeight = calculateTextHeight(ctx, element.text || 'Texto', newWidth, element.fontSize || 20, element.fontFamily || 'Inter, sans-serif');
+                            updatedElement.height = calculatedHeight;
+                        }
+                    }
+
                     return updatedElement;
                 }
                 return element;
@@ -1294,6 +1476,29 @@ export function Canva() {
         // Laser pointer drawing
         if (interactionMode === 'drawing' && selectedTool === 'laser') {
             addLaserPoint(point);
+        }
+
+        // Eraser drawing
+        if (interactionMode === 'drawing' && selectedTool === 'eraser') {
+            const newPoint = { x: point.x, y: point.y, timestamp: Date.now() };
+
+            // Update path, keep only recent points (500ms)
+            setEraserPath(prev => {
+                const now = Date.now();
+                const path = prev ? [...prev, newPoint] : [newPoint];
+                return path.filter(p => now - p.timestamp < 500);
+            });
+
+            // Check collision
+            elements.forEach(el => {
+                if (!el.locked && isPointInElement(point, el)) {
+                    setErasedIds(prev => {
+                        const newSet = new Set(prev);
+                        newSet.add(el.id);
+                        return newSet;
+                    });
+                }
+            });
         }
 
         // Update cursor and hover states
@@ -1442,6 +1647,18 @@ export function Canva() {
 
         // Finish laser stroke
         finishLaserStroke();
+
+        // Finish eraser stroke
+        if (selectedTool === 'eraser' && erasedIds.size > 0) {
+            // Remove erased elements
+            const newElements = elements.filter(el => !erasedIds.has(el.id));
+            setElements(newElements);
+            addToHistory(newElements);
+            setErasedIds(new Set());
+            setEraserPath(null);
+        } else if (selectedTool === 'eraser') {
+            setEraserPath(null);
+        }
 
         setInteractionMode('none');
         setCurrentElement(null);
@@ -1772,209 +1989,253 @@ export function Canva() {
 
                             return (
                                 <>
-                                    <div className="panel-section">
-                                        <span className="panel-label">Contorno</span>
-                                        <div className="color-grid">
-                                            {colors.map(color => (
-                                                <button
-                                                    key={color}
-                                                    className={`color-btn ${currentStyle.stroke === color ? 'active' : ''}`}
-                                                    style={{ backgroundColor: color }}
-                                                    onClick={() => handleStyleUpdate({ stroke: color })}
-                                                />
-                                            ))}
-                                        </div>
-                                    </div>
-
-                                    <div className="panel-section">
-                                        <span className="panel-label">Fundo</span>
-                                        <div className="color-grid">
-                                            <button
-                                                className={`color-btn transparent ${currentStyle.fill === 'transparent' ? 'active' : ''}`}
-                                                onClick={() => handleStyleUpdate({ fill: 'transparent' })}
-                                                title="Transparente"
-                                            />
-                                            {colors.map(color => (
-                                                <button
-                                                    key={color}
-                                                    className={`color-btn ${currentStyle.fill === color ? 'active' : ''}`}
-                                                    style={{ backgroundColor: color }}
-                                                    onClick={() => handleStyleUpdate({ fill: color })}
-                                                />
-                                            ))}
-                                        </div>
-                                    </div>
-
-                                    <div className="panel-section">
-                                        <span className="panel-label">Espessura do traço</span>
-                                        <div className="stroke-grid">
-                                            {strokeWidths.map(width => (
-                                                <button
-                                                    key={width}
-                                                    className={`stroke-btn ${currentStyle.strokeWidth === width ? 'active' : ''}`}
-                                                    onClick={() => handleStyleUpdate({ strokeWidth: width })}
-                                                >
-                                                    <div className="stroke-line" style={{ height: width }} />
-                                                </button>
-                                            ))}
-                                        </div>
-                                    </div>
-
-                                    {/* Hide stroke style and roughness for pencil */}
-                                    {currentStyle.type !== 'pencil' && (
+                                    {currentStyle.type === 'text' ? (
                                         <>
                                             <div className="panel-section">
-                                                <span className="panel-label">Estilo do traço</span>
-                                                <div className="style-grid">
-                                                    <button
-                                                        className={`style-btn ${currentStyle.strokeStyle === 'solid' ? 'active' : ''}`}
-                                                        onClick={() => handleStyleUpdate({ strokeStyle: 'solid' })}
-                                                        title="Sólido"
+                                                <span className="panel-label">Fonte</span>
+                                                <div className="text-controls" style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
+                                                    <select
+                                                        className="font-select"
+                                                        value={currentStyle.fontFamily || 'Inter, sans-serif'}
+                                                        onChange={(e) => handleStyleUpdate({ fontFamily: e.target.value })}
+                                                        style={{ flex: 1, padding: '4px', borderRadius: '4px', border: '1px solid #333', background: '#222', color: '#fff' }}
                                                     >
-                                                        <div className="style-line solid" />
-                                                    </button>
-                                                    <button
-                                                        className={`style-btn ${currentStyle.strokeStyle === 'dashed' ? 'active' : ''}`}
-                                                        onClick={() => handleStyleUpdate({ strokeStyle: 'dashed' })}
-                                                        title="Tracejado"
-                                                    >
-                                                        <div className="style-line dashed" />
-                                                    </button>
-                                                    <button
-                                                        className={`style-btn ${currentStyle.strokeStyle === 'dotted' ? 'active' : ''}`}
-                                                        onClick={() => handleStyleUpdate({ strokeStyle: 'dotted' })}
-                                                        title="Pontilhado"
-                                                    >
-                                                        <div className="style-line dotted" />
-                                                    </button>
+                                                        <option value="Inter, sans-serif">Inter</option>
+                                                        <option value="Arial, sans-serif">Arial</option>
+                                                        <option value="Times New Roman, serif">Times New Roman</option>
+                                                        <option value="Courier New, monospace">Courier New</option>
+                                                        <option value="Brush Script MT, cursive">Brush Script</option>
+                                                    </select>
+                                                    <input
+                                                        type="number"
+                                                        value={currentStyle.fontSize || 20}
+                                                        onChange={(e) => handleStyleUpdate({ fontSize: parseInt(e.target.value) })}
+                                                        style={{ width: '60px', padding: '4px', borderRadius: '4px', border: '1px solid #333', background: '#222', color: '#fff' }}
+                                                    />
                                                 </div>
                                             </div>
 
                                             <div className="panel-section">
-                                                <span className="panel-label">Precisão do traço</span>
-                                                <div className="style-grid">
-                                                    <button
-                                                        className={`style-btn ${currentStyle.roughness === 0 ? 'active' : ''}`}
-                                                        onClick={() => handleStyleUpdate({ roughness: 0 })}
-                                                        title="Suave"
-                                                    >
-                                                        <svg width="20" height="14" viewBox="0 0 20 14">
-                                                            <path d="M2 12 Q10 2, 18 12" stroke="currentColor" strokeWidth="2" fill="none" />
-                                                        </svg>
-                                                    </button>
-                                                    <button
-                                                        className={`style-btn ${currentStyle.roughness === 1 ? 'active' : ''}`}
-                                                        onClick={() => handleStyleUpdate({ roughness: 1 })}
-                                                        title="Normal"
-                                                    >
-                                                        <svg width="20" height="14" viewBox="0 0 20 14">
-                                                            <path d="M2 12 Q5 8, 7 10 Q10 2, 13 8 Q16 6, 18 12" stroke="currentColor" strokeWidth="2" fill="none" />
-                                                        </svg>
-                                                    </button>
-                                                    <button
-                                                        className={`style-btn ${currentStyle.roughness === 2 ? 'active' : ''}`}
-                                                        onClick={() => handleStyleUpdate({ roughness: 2 })}
-                                                        title="Áspero"
-                                                    >
-                                                        <svg width="20" height="14" viewBox="0 0 20 14">
-                                                            <path d="M2 10 L4 6 L6 11 L8 4 L10 9 L12 5 L14 10 L16 7 L18 11" stroke="currentColor" strokeWidth="2" fill="none" />
-                                                        </svg>
-                                                    </button>
+                                                <span className="panel-label">Cor</span>
+                                                <div className="color-grid">
+                                                    {colors.map(color => (
+                                                        <button
+                                                            key={color}
+                                                            className={`color-btn ${currentStyle.stroke === color ? 'active' : ''}`}
+                                                            style={{ backgroundColor: color }}
+                                                            onClick={() => handleStyleUpdate({ stroke: color })}
+                                                        />
+                                                    ))}
                                                 </div>
                                             </div>
                                         </>
-                                    )}
-
-                                    {/* Only show Arestas for shapes with corners */}
-                                    {currentStyle.type !== 'arrow' && currentStyle.type !== 'line' && currentStyle.type !== 'pencil' && currentStyle.type !== 'ellipse' && (
-                                        <div className="panel-section">
-                                            <span className="panel-label">Arestas</span>
-                                            <div className="style-grid edges-grid">
-                                                <button
-                                                    className={`style-btn ${currentStyle.borderRadius === 0 ? 'active' : ''}`}
-                                                    onClick={() => handleStyleUpdate({ borderRadius: 0 })}
-                                                    title="Retas"
-                                                >
-                                                    <svg width="20" height="16" viewBox="0 0 20 16">
-                                                        <rect x="2" y="2" width="16" height="12" stroke="currentColor" strokeWidth="2" fill="none" />
-                                                    </svg>
-                                                </button>
-                                                <button
-                                                    className={`style-btn ${currentStyle.borderRadius === 1 ? 'active' : ''}`}
-                                                    onClick={() => handleStyleUpdate({ borderRadius: 1 })}
-                                                    title="Arredondadas"
-                                                >
-                                                    <svg width="20" height="16" viewBox="0 0 20 16">
-                                                        <rect x="2" y="2" width="16" height="12" rx="4" ry="4" stroke="currentColor" strokeWidth="2" fill="none" />
-                                                    </svg>
-                                                </button>
-                                            </div>
-                                        </div>
-                                    )}
-
-                                    {/* Arrow/Line type options - only for arrows and lines */}
-                                    {(currentStyle.type === 'arrow' || currentStyle.type === 'line') && (
+                                    ) : (
                                         <>
                                             <div className="panel-section">
-                                                <span className="panel-label">{currentStyle.type === 'arrow' ? 'Tipo de seta' : 'Tipo de linha'}</span>
-                                                <div className="style-grid">
-                                                    <button
-                                                        className={`style-btn ${currentStyle.lineStyle === 'straight' ? 'active' : ''}`}
-                                                        onClick={() => handleStyleUpdate({ lineStyle: 'straight', controlPoint: undefined })}
-                                                        title="Reta"
-                                                    >
-                                                        <svg width="20" height="14" viewBox="0 0 20 14">
-                                                            <line x1="2" y1="12" x2="18" y2="2" stroke="currentColor" strokeWidth="2" />
-                                                        </svg>
-                                                    </button>
-                                                    <button
-                                                        className={`style-btn ${currentStyle.lineStyle === 'elbow' ? 'active' : ''}`}
-                                                        onClick={() => handleStyleUpdate({ lineStyle: 'elbow' })}
-                                                        title="Ângulo"
-                                                    >
-                                                        <svg width="20" height="14" viewBox="0 0 20 14">
-                                                            <polyline points="2,12 10,12 18,2" stroke="currentColor" strokeWidth="2" fill="none" />
-                                                        </svg>
-                                                    </button>
-                                                    <button
-                                                        className={`style-btn ${currentStyle.lineStyle === 'curve' ? 'active' : ''}`}
-                                                        onClick={() => handleStyleUpdate({ lineStyle: 'curve' })}
-                                                        title="Curva"
-                                                    >
-                                                        <svg width="20" height="14" viewBox="0 0 20 14">
-                                                            <path d="M2 12 Q10 2, 18 12" stroke="currentColor" strokeWidth="2" fill="none" />
-                                                        </svg>
-                                                    </button>
+                                                <span className="panel-label">Contorno</span>
+                                                <div className="color-grid">
+                                                    {colors.map(color => (
+                                                        <button
+                                                            key={color}
+                                                            className={`color-btn ${currentStyle.stroke === color ? 'active' : ''}`}
+                                                            style={{ backgroundColor: color }}
+                                                            onClick={() => handleStyleUpdate({ stroke: color })}
+                                                        />
+                                                    ))}
                                                 </div>
                                             </div>
 
-                                            {currentStyle.type === 'arrow' && (
-                                                <div className="panel-section">
-                                                    <span className="panel-label">Pontas</span>
-                                                    <div className="style-grid">
+                                            <div className="panel-section">
+                                                <span className="panel-label">Fundo</span>
+                                                <div className="color-grid">
+                                                    <button
+                                                        className={`color-btn transparent ${currentStyle.fill === 'transparent' ? 'active' : ''}`}
+                                                        onClick={() => handleStyleUpdate({ fill: 'transparent' })}
+                                                        title="Transparente"
+                                                    />
+                                                    {colors.map(color => (
                                                         <button
-                                                            className={`style-btn ${currentStyle.arrowStart === 'none' && currentStyle.arrowEnd === 'arrow' ? 'active' : ''}`}
-                                                            onClick={() => handleStyleUpdate({ arrowStart: 'none', arrowEnd: 'arrow' })}
-                                                            title="Seta no fim"
+                                                            key={color}
+                                                            className={`color-btn ${currentStyle.fill === color ? 'active' : ''}`}
+                                                            style={{ backgroundColor: color }}
+                                                            onClick={() => handleStyleUpdate({ fill: color })}
+                                                        />
+                                                    ))}
+                                                </div>
+                                            </div>
+
+                                            <div className="panel-section">
+                                                <span className="panel-label">Espessura do traço</span>
+                                                <div className="stroke-grid">
+                                                    {strokeWidths.map(width => (
+                                                        <button
+                                                            key={width}
+                                                            className={`stroke-btn ${currentStyle.strokeWidth === width ? 'active' : ''}`}
+                                                            onClick={() => handleStyleUpdate({ strokeWidth: width })}
                                                         >
-                                                            <svg width="20" height="14" viewBox="0 0 20 14">
-                                                                <line x1="2" y1="7" x2="14" y2="7" stroke="currentColor" strokeWidth="2" />
-                                                                <polyline points="12,4 18,7 12,10" stroke="currentColor" strokeWidth="2" fill="none" />
+                                                            <div className="stroke-line" style={{ height: width }} />
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            </div>
+
+                                            {/* Hide stroke style and roughness for pencil */}
+                                            {currentStyle.type !== 'pencil' && (
+                                                <>
+                                                    <div className="panel-section">
+                                                        <span className="panel-label">Estilo do traço</span>
+                                                        <div className="style-grid">
+                                                            <button
+                                                                className={`style-btn ${currentStyle.strokeStyle === 'solid' ? 'active' : ''}`}
+                                                                onClick={() => handleStyleUpdate({ strokeStyle: 'solid' })}
+                                                                title="Sólido"
+                                                            >
+                                                                <div className="style-line solid" />
+                                                            </button>
+                                                            <button
+                                                                className={`style-btn ${currentStyle.strokeStyle === 'dashed' ? 'active' : ''}`}
+                                                                onClick={() => handleStyleUpdate({ strokeStyle: 'dashed' })}
+                                                                title="Tracejado"
+                                                            >
+                                                                <div className="style-line dashed" />
+                                                            </button>
+                                                            <button
+                                                                className={`style-btn ${currentStyle.strokeStyle === 'dotted' ? 'active' : ''}`}
+                                                                onClick={() => handleStyleUpdate({ strokeStyle: 'dotted' })}
+                                                                title="Pontilhado"
+                                                            >
+                                                                <div className="style-line dotted" />
+                                                            </button>
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="panel-section">
+                                                        <span className="panel-label">Precisão do traço</span>
+                                                        <div className="style-grid">
+                                                            <button
+                                                                className={`style-btn ${currentStyle.roughness === 0 ? 'active' : ''}`}
+                                                                onClick={() => handleStyleUpdate({ roughness: 0 })}
+                                                                title="Suave"
+                                                            >
+                                                                <svg width="20" height="14" viewBox="0 0 20 14">
+                                                                    <path d="M2 12 Q10 2, 18 12" stroke="currentColor" strokeWidth="2" fill="none" />
+                                                                </svg>
+                                                            </button>
+                                                            <button
+                                                                className={`style-btn ${currentStyle.roughness === 1 ? 'active' : ''}`}
+                                                                onClick={() => handleStyleUpdate({ roughness: 1 })}
+                                                                title="Normal"
+                                                            >
+                                                                <svg width="20" height="14" viewBox="0 0 20 14">
+                                                                    <path d="M2 12 Q5 8, 7 10 Q10 2, 13 8 Q16 6, 18 12" stroke="currentColor" strokeWidth="2" fill="none" />
+                                                                </svg>
+                                                            </button>
+                                                            <button
+                                                                className={`style-btn ${currentStyle.roughness === 2 ? 'active' : ''}`}
+                                                                onClick={() => handleStyleUpdate({ roughness: 2 })}
+                                                                title="Áspero"
+                                                            >
+                                                                <svg width="20" height="14" viewBox="0 0 20 14">
+                                                                    <path d="M2 10 L4 6 L6 11 L8 4 L10 9 L12 5 L14 10 L16 7 L18 11" stroke="currentColor" strokeWidth="2" fill="none" />
+                                                                </svg>
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                </>
+                                            )}
+
+                                            {/* Only show Arestas for shapes with corners */}
+                                            {currentStyle.type !== 'arrow' && currentStyle.type !== 'line' && currentStyle.type !== 'pencil' && currentStyle.type !== 'ellipse' && (
+                                                <div className="panel-section">
+                                                    <span className="panel-label">Arestas</span>
+                                                    <div className="style-grid edges-grid">
+                                                        <button
+                                                            className={`style-btn ${currentStyle.borderRadius === 0 ? 'active' : ''}`}
+                                                            onClick={() => handleStyleUpdate({ borderRadius: 0 })}
+                                                            title="Retas"
+                                                        >
+                                                            <svg width="20" height="16" viewBox="0 0 20 16">
+                                                                <rect x="2" y="2" width="16" height="12" stroke="currentColor" strokeWidth="2" fill="none" />
                                                             </svg>
                                                         </button>
                                                         <button
-                                                            className={`style-btn ${currentStyle.arrowStart === 'arrow' && currentStyle.arrowEnd === 'arrow' ? 'active' : ''}`}
-                                                            onClick={() => handleStyleUpdate({ arrowStart: 'arrow', arrowEnd: 'arrow' })}
-                                                            title="Seta dupla"
+                                                            className={`style-btn ${currentStyle.borderRadius === 1 ? 'active' : ''}`}
+                                                            onClick={() => handleStyleUpdate({ borderRadius: 1 })}
+                                                            title="Arredondadas"
                                                         >
-                                                            <svg width="20" height="14" viewBox="0 0 20 14">
-                                                                <line x1="6" y1="7" x2="14" y2="7" stroke="currentColor" strokeWidth="2" />
-                                                                <polyline points="8,4 2,7 8,10" stroke="currentColor" strokeWidth="2" fill="none" />
-                                                                <polyline points="12,4 18,7 12,10" stroke="currentColor" strokeWidth="2" fill="none" />
+                                                            <svg width="20" height="16" viewBox="0 0 20 16">
+                                                                <rect x="2" y="2" width="16" height="12" rx="4" ry="4" stroke="currentColor" strokeWidth="2" fill="none" />
                                                             </svg>
                                                         </button>
                                                     </div>
                                                 </div>
+                                            )}
+
+                                            {/* Arrow/Line type options - only for arrows and lines */}
+                                            {(currentStyle.type === 'arrow' || currentStyle.type === 'line') && (
+                                                <>
+                                                    <div className="panel-section">
+                                                        <span className="panel-label">{currentStyle.type === 'arrow' ? 'Tipo de seta' : 'Tipo de linha'}</span>
+                                                        <div className="style-grid">
+                                                            <button
+                                                                className={`style-btn ${currentStyle.lineStyle === 'straight' ? 'active' : ''}`}
+                                                                onClick={() => handleStyleUpdate({ lineStyle: 'straight', controlPoint: undefined })}
+                                                                title="Reta"
+                                                            >
+                                                                <svg width="20" height="14" viewBox="0 0 20 14">
+                                                                    <line x1="2" y1="12" x2="18" y2="2" stroke="currentColor" strokeWidth="2" />
+                                                                </svg>
+                                                            </button>
+                                                            <button
+                                                                className={`style-btn ${currentStyle.lineStyle === 'elbow' ? 'active' : ''}`}
+                                                                onClick={() => handleStyleUpdate({ lineStyle: 'elbow' })}
+                                                                title="Ângulo"
+                                                            >
+                                                                <svg width="20" height="14" viewBox="0 0 20 14">
+                                                                    <polyline points="2,12 10,12 18,2" stroke="currentColor" strokeWidth="2" fill="none" />
+                                                                </svg>
+                                                            </button>
+                                                            <button
+                                                                className={`style-btn ${currentStyle.lineStyle === 'curve' ? 'active' : ''}`}
+                                                                onClick={() => handleStyleUpdate({ lineStyle: 'curve' })}
+                                                                title="Curva"
+                                                            >
+                                                                <svg width="20" height="14" viewBox="0 0 20 14">
+                                                                    <path d="M2 12 Q10 2, 18 12" stroke="currentColor" strokeWidth="2" fill="none" />
+                                                                </svg>
+                                                            </button>
+                                                        </div>
+                                                    </div>
+
+                                                    {currentStyle.type === 'arrow' && (
+                                                        <div className="panel-section">
+                                                            <span className="panel-label">Pontas</span>
+                                                            <div className="style-grid">
+                                                                <button
+                                                                    className={`style-btn ${currentStyle.arrowStart === 'none' && currentStyle.arrowEnd === 'arrow' ? 'active' : ''}`}
+                                                                    onClick={() => handleStyleUpdate({ arrowStart: 'none', arrowEnd: 'arrow' })}
+                                                                    title="Seta no fim"
+                                                                >
+                                                                    <svg width="20" height="14" viewBox="0 0 20 14">
+                                                                        <line x1="2" y1="7" x2="14" y2="7" stroke="currentColor" strokeWidth="2" />
+                                                                        <polyline points="12,4 18,7 12,10" stroke="currentColor" strokeWidth="2" fill="none" />
+                                                                    </svg>
+                                                                </button>
+                                                                <button
+                                                                    className={`style-btn ${currentStyle.arrowStart === 'arrow' && currentStyle.arrowEnd === 'arrow' ? 'active' : ''}`}
+                                                                    onClick={() => handleStyleUpdate({ arrowStart: 'arrow', arrowEnd: 'arrow' })}
+                                                                    title="Seta dupla"
+                                                                >
+                                                                    <svg width="20" height="14" viewBox="0 0 20 14">
+                                                                        <line x1="6" y1="7" x2="14" y2="7" stroke="currentColor" strokeWidth="2" />
+                                                                        <polyline points="8,4 2,7 8,10" stroke="currentColor" strokeWidth="2" fill="none" />
+                                                                        <polyline points="12,4 18,7 12,10" stroke="currentColor" strokeWidth="2" fill="none" />
+                                                                    </svg>
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                </>
                                             )}
                                         </>
                                     )}
@@ -1993,6 +2254,7 @@ export function Canva() {
                                             <span className="opacity-value">{Math.round(currentStyle.opacity * 100)}</span>
                                         </div>
                                     </div>
+
 
                                     {!isEditingDefault && (
                                         <>
@@ -2054,8 +2316,21 @@ export function Canva() {
                                 top: textElement.y * scale + offset.y,
                                 fontSize: (textElement.fontSize || 20) * scale,
                                 color: textElement.stroke,
+                                fontFamily: textElement.fontFamily || 'Inter, sans-serif',
+                                width: textElement.width * scale,
+                                height: textElement.height * scale,
+                                border: '1px dashed rgba(34, 197, 94, 0.5)',
+                                background: 'transparent',
+                                padding: '0',
+                                margin: '0',
+                                overflow: 'hidden',
+                                resize: 'none',
+                                outline: 'none',
+                                textAlign: textElement.type === 'text' ? 'left' : 'center',
+                                lineHeight: '1.2'
                             }}
                             value={textElement.text || ''}
+                            onFocus={(e) => e.target.select()}
                             onChange={(e) => {
                                 setElements(elements.map(el =>
                                     el.id === editingTextId
