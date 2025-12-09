@@ -46,7 +46,6 @@ function App() {
     const [tokensUsed, setTokensUsed] = useState(0);
     const [tokensLimit, setTokensLimit] = useState(10000);
     const [subscriptionId, setSubscriptionId] = useState<string | undefined>(undefined);
-    const [productId, setProductId] = useState<string | undefined>(undefined);
 
     const fetchUserData = async () => {
         if (!user) return;
@@ -57,7 +56,7 @@ function App() {
                 setUserPlan(subResult.data.plan);
                 setTokensLimit(subResult.data.tokensLimit);
                 setSubscriptionId(subResult.data.subscriptionId);
-                setProductId(subResult.data.productId);
+
             }
 
             // Fetch Token Usage

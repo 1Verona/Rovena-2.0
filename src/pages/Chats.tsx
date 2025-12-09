@@ -19,9 +19,9 @@ export function Chats() {
     const [inputValue, setInputValue] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const [tokensUsed, setTokensUsed] = useState(0);
-    const [tokensLimit, setTokensLimit] = useState(10000); // Default placeholder
     const [error, setError] = useState<string | null>(null);
     const [currentChatId, setCurrentChatId] = useState<string | null>(null);
+
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const auth = getAuth();
     const user = auth.currentUser;
@@ -81,7 +81,7 @@ export function Chats() {
             createdAt: Date.now(),
             title,
             messages
-        });
+        } as any);
     };
 
     const scrollToBottom = () => {

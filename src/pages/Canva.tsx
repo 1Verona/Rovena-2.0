@@ -888,7 +888,6 @@ export function Canva() {
 
         if (element.locked) {
             // Draw Lock Icon (Lucide style)
-            const lockSize = 16;
             const lockX = x + 2;
             const lockY = y - 22;
 
