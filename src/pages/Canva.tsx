@@ -23,7 +23,9 @@ import {
     Layers,
     ChevronUp,
     ChevronDown,
-
+    AlignLeft,
+    AlignCenter,
+    AlignRight,
 } from 'lucide-react';
 import './Canva.css';
 
@@ -56,6 +58,7 @@ interface CanvasElement {
     text?: string;
     fontSize?: number;
     fontFamily?: string;
+    textAlign?: 'left' | 'center' | 'right';
     points?: Point[];
     controlPoint?: Point; // For lines/arrows mid-point
     lineStyle: 'straight' | 'elbow' | 'curve'; // Type of line connection
@@ -162,7 +165,6 @@ export function Canva() {
 
     // Text editing
     const [editingTextId, setEditingTextId] = useState<string | null>(null);
-    const textInputRef = useRef<HTMLTextAreaElement>(null);
 
     // Laser pointer state
     interface LaserPoint {
@@ -757,15 +759,28 @@ export function Canva() {
                 break;
 
             case 'text':
+                // Don't draw text if it's currently being edited (the textarea overlay handles it)
+                if (element.id === editingTextId) {
+                    break;
+                }
+
                 ctx.font = `${element.fontSize || 20}px ${element.fontFamily || 'Inter, sans-serif'}`;
                 ctx.fillStyle = element.stroke;
-                ctx.textBaseline = 'top'; // Easier for multiline
+                ctx.textBaseline = 'top';
+
+                // Text alignment
+                const align = element.textAlign || 'left';
+                ctx.textAlign = align;
+
+                let textX = x;
+                if (align === 'center') textX = x + w / 2;
+                if (align === 'right') textX = x + w;
 
                 const lines = getWrappedTextLines(ctx, element.text || 'Texto', w);
                 const lineHeight = (element.fontSize || 20) * 1.2;
 
                 lines.forEach((line, i) => {
-                    ctx.fillText(line, x, y + i * lineHeight);
+                    ctx.fillText(line, textX, y + i * lineHeight);
                 });
                 break;
 
@@ -786,6 +801,12 @@ export function Canva() {
         // If multiple are selected, we draw a group box in render() instead
         const isMultiSelection = selectedElements.length > 1;
 
+        // Don't draw selection box if this element is currently being edited as text
+        // because the textarea overlay has its own border/UI
+        if (element.id === editingTextId) {
+            return;
+        }
+
         if ((element.selected && !element.locked && !isMultiSelection) || (element.selected && element.locked && !isMultiSelection)) {
             // Show selection for locked elements too, but maybe different style?
             // User said "mostrar do mesmo jeito". But we need to make sure we don't draw resize handles if locked?
@@ -800,6 +821,9 @@ export function Canva() {
         }
 
         if (element.selected) {
+            // Reset opacity for selection box
+            ctx.globalAlpha = 1;
+
             ctx.setLineDash([]);
             ctx.fillStyle = '#ffffff';
             ctx.strokeStyle = SELECTION_COLOR;
@@ -929,7 +953,7 @@ export function Canva() {
         }
 
         ctx.restore();
-    }, []);
+    }, [editingTextId, selectedElements]);
 
     // Render canvas
     const render = useCallback(() => {
@@ -1081,8 +1105,6 @@ export function Canva() {
             if (visibleEraserPoints.length > 1) {
                 ctx.lineCap = 'round';
                 ctx.lineJoin = 'round';
-                ctx.shadowColor = 'rgba(190, 190, 190, 0.7)';
-                ctx.shadowBlur = 10;
 
                 for (let i = 1; i < visibleEraserPoints.length; i++) {
                     const age = now - visibleEraserPoints[i].timestamp;
@@ -1101,7 +1123,6 @@ export function Canva() {
                     ctx.lineTo(visibleEraserPoints[i].x, visibleEraserPoints[i].y);
                     ctx.stroke();
                 }
-                ctx.shadowBlur = 0;
             }
         }
 
@@ -1233,13 +1254,31 @@ export function Canva() {
 
                 // Default: white stroke, transparent fill
                 setInteractionMode('drawing');
+
+                // Calculate initial dimensions for text
+                let initialWidth = 0;
+                let initialHeight = 0;
+
+                if (selectedTool === 'text') {
+                    const ctx = canvasRef.current?.getContext('2d');
+                    if (ctx) {
+                        ctx.font = `20px Inter, sans-serif`;
+                        const metrics = ctx.measureText('Texto');
+                        initialWidth = metrics.width + 10; // Add padding
+                        initialHeight = 20 * 1.2; // Line height
+                    } else {
+                        initialWidth = 50;
+                        initialHeight = 24;
+                    }
+                }
+
                 const newElement: CanvasElement = {
                     id: generateId(),
                     type: selectedTool as CanvasElement['type'],
                     x: point.x,
                     y: point.y,
-                    width: 0,
-                    height: 0,
+                    width: initialWidth,
+                    height: initialHeight,
                     rotation: 0,
                     fill: defaultStyles.fill,
                     stroke: defaultStyles.stroke,
@@ -1251,14 +1290,26 @@ export function Canva() {
                     text: selectedTool === 'text' ? 'Texto' : undefined,
                     fontSize: 20,
                     fontFamily: 'Inter, sans-serif',
+                    textAlign: selectedTool === 'text' ? 'center' : undefined,
                     points: selectedTool === 'pencil' ? [point] : undefined,
                     lineStyle: 'straight',
                     arrowStart: 'none',
                     arrowEnd: selectedTool === 'arrow' ? 'arrow' : 'none',
                     locked: false,
-                    selected: false
+                    selected: selectedTool === 'text' // Select text immediately
                 };
-                setCurrentElement(newElement);
+
+                // If text, select it and start editing immediately
+                if (selectedTool === 'text') {
+                    setElements([...elements, newElement]);
+                    setSelectedElements([newElement.id]);
+                    setEditingTextId(newElement.id); // Start editing
+                    setInteractionMode('none'); // Reset mode
+                    setSelectedTool('select'); // Switch to select tool
+                    addToHistory([...elements, newElement]);
+                } else {
+                    setCurrentElement(newElement);
+                }
             } else if (selectedTool === 'laser') {
                 // Laser pointer - temporary strokes
                 setInteractionMode('drawing');
@@ -1371,27 +1422,64 @@ export function Canva() {
             let newHeight = el.height;
             let newX = el.x;
             let newY = el.y;
+            let updatedFontSize = el.fontSize;
 
             switch (activeHandle) {
                 case 'se':
-                    newWidth = Math.max(20, el.width + dx);
-                    newHeight = keepRatio ? newWidth / aspectRatio : Math.max(20, el.height + dy);
+                    if (el.type === 'text') {
+                        const scaleFactor = Math.max(0.1, (el.height + dy) / el.height);
+                        updatedFontSize = Math.max(10, (el.fontSize || 20) * scaleFactor);
+                    } else {
+                        newWidth = Math.max(20, el.width + dx);
+                        newHeight = keepRatio ? newWidth / aspectRatio : Math.max(20, el.height + dy);
+                    }
                     break;
                 case 'sw':
-                    newWidth = Math.max(20, el.width - dx);
-                    newHeight = keepRatio ? newWidth / aspectRatio : Math.max(20, el.height + dy);
-                    newX = el.x + el.width - newWidth;
+                    if (el.type === 'text') {
+                        const scaleFactor = Math.max(0.1, (el.height + dy) / el.height);
+                        updatedFontSize = Math.max(10, (el.fontSize || 20) * scaleFactor);
+                    } else {
+                        newWidth = Math.max(20, el.width - dx);
+                        newHeight = keepRatio ? newWidth / aspectRatio : Math.max(20, el.height + dy);
+                        newX = el.x + el.width - newWidth;
+                    }
                     break;
                 case 'ne':
-                    newWidth = Math.max(20, el.width + dx);
-                    newHeight = keepRatio ? newWidth / aspectRatio : Math.max(20, el.height - dy);
-                    newY = keepRatio ? el.y + el.height - newHeight : el.y + (el.height - newHeight);
+                    if (el.type === 'text') {
+                        const scaleFactor = Math.max(0.1, (el.height - dy) / el.height);
+                        updatedFontSize = Math.max(10, (el.fontSize || 20) * scaleFactor);
+                    } else {
+                        newWidth = Math.max(20, el.width + dx);
+                        newHeight = keepRatio ? newWidth / aspectRatio : Math.max(20, el.height - dy);
+                        newY = keepRatio ? el.y + el.height - newHeight : el.y + (el.height - newHeight);
+                    }
                     break;
                 case 'nw':
-                    newWidth = Math.max(20, el.width - dx);
-                    newHeight = keepRatio ? newWidth / aspectRatio : Math.max(20, el.height - dy);
-                    newX = el.x + el.width - newWidth;
-                    newY = keepRatio ? el.y + el.height - newHeight : el.y + (el.height - newHeight);
+                    if (el.type === 'text') {
+                        const scaleFactor = Math.max(0.1, (el.height - dy) / el.height);
+                        updatedFontSize = Math.max(10, (el.fontSize || 20) * scaleFactor);
+                    } else {
+                        newWidth = Math.max(20, el.width - dx);
+                        newHeight = keepRatio ? newWidth / aspectRatio : Math.max(20, el.height - dy);
+                        newX = el.x + el.width - newWidth;
+                        // For text, we'll fix Y after calculating height if needed, but usually top-left anchor means Y stays?
+                        // If dragging 'nw', Y changes. But for text auto-height, we usually anchor top.
+                        // If user drags NW, they expect Top to move. But simpler text resizing usually anchors Top-Left or Center.
+                        // Let's stick to standard behavior: NW resize moves X and Y.
+                        // But if height is auto, we can't easily move Y to match bottom-anchor. 
+                        // Let's assume text resizing anchors Top for simplicity unless requested otherwise.
+                        // For strict corner resizing:
+                        // If I drag NW up/down, I expect the box to grow/shrink.
+                        // But since height is auto-calculated, dragging vertical component of NW is meaningless for Text.
+                        // So we only update X and Width. Y stays, or Y moves if we want to "push" the text?
+                        // Usually text box width resizing anchors on the opposite side.
+                        // SE -> Anchors NW. (Y stays)
+                        // SW -> Anchors NE. (Y stays)
+                        // NE -> Anchors SW. (Y moves? No, Y stays usually for text).
+                        // NW -> Anchors SE.
+
+                        newY = keepRatio ? el.y + el.height - newHeight : el.y + (el.height - newHeight);
+                    }
                     break;
             }
 
@@ -1416,6 +1504,53 @@ export function Canva() {
                         if (ctx) {
                             const calculatedHeight = calculateTextHeight(ctx, element.text || 'Texto', newWidth, element.fontSize || 20, element.fontFamily || 'Inter, sans-serif');
                             updatedElement.height = calculatedHeight;
+
+                            // If dragging N corners, we might generally imply we want to move Y, but with auto-height
+                            // it's cleaner to keep Top fixed (Y). Users usually drag corners to change Width mainly.
+                            // If we want to support "pushing up", we'd need to calculate dH and adjust Y.
+                            // For now, simple standard: Width changes, Height auto-updates downwards.
+                        }
+                    }
+
+                    // Scale text bounds and position
+                    if (element.type === 'text' && updatedFontSize) {
+                        const ctx = canvasRef.current?.getContext('2d');
+                        if (ctx) {
+                            ctx.font = `${updatedFontSize}px ${element.fontFamily || 'Inter, sans-serif'}`;
+                            const text = element.text || 'Texto';
+
+                            // Measure new dims
+                            const lines = text.split('\n');
+                            let maxWidth = 0;
+                            lines.forEach(line => {
+                                maxWidth = Math.max(maxWidth, ctx.measureText(line).width);
+                            });
+
+                            const measuredWidth = maxWidth + 10;
+                            const measuredHeight = (updatedFontSize * 1.2) * lines.length;
+
+                            updatedElement.fontSize = updatedFontSize;
+                            updatedElement.width = measuredWidth;
+                            updatedElement.height = measuredHeight;
+
+                            // Adjust position based on active handle to keep anchored side fixed
+                            if (activeHandle === 'sw' || activeHandle === 'nw') {
+                                // Right anchored: X = Right - NewWidth
+                                const right = element.x + element.width;
+                                updatedElement.x = right - measuredWidth;
+                            } else {
+                                // Left anchored: X stays same
+                                updatedElement.x = element.x;
+                            }
+
+                            if (activeHandle === 'ne' || activeHandle === 'nw') {
+                                // Bottom anchored: Y = Bottom - NewHeight
+                                const bottom = element.y + element.height;
+                                updatedElement.y = bottom - measuredHeight;
+                            } else {
+                                // Top anchored: Y stays same
+                                updatedElement.y = element.y;
+                            }
                         }
                     }
 
@@ -1717,6 +1852,9 @@ export function Canva() {
     // Keyboard shortcuts
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
+            // Disable shortcuts if editing text
+            if (editingTextId) return;
+
             if (!e.ctrlKey && !e.metaKey) {
                 switch (e.key.toLowerCase()) {
                     case 'v': setSelectedTool('select'); break;
@@ -2030,6 +2168,38 @@ export function Canva() {
                                 if (isEditingDefault) {
                                     setDefaultStyles(prev => ({ ...prev, ...updates }));
                                 } else {
+                                    // If updating text font size/family, we need to update the bounds
+                                    if (selectedElement?.type === 'text' && (updates.fontSize || updates.fontFamily || updates.text)) {
+                                        const ctx = canvasRef.current?.getContext('2d');
+                                        if (ctx) {
+                                            const newFontSize = updates.fontSize || selectedElement.fontSize || 20;
+                                            const newFontFamily = updates.fontFamily || selectedElement.fontFamily || 'Inter, sans-serif';
+                                            const text = updates.text || selectedElement.text || 'Texto';
+
+                                            ctx.font = `${newFontSize}px ${newFontFamily}`;
+                                            const metrics = ctx.measureText(text);
+                                            // Assuming single line for point text behavior as requested by "scale" logic
+                                            // If users want multiline, they hit Enter.
+                                            // We usually measure width of longest line.
+                                            let maxWidth = metrics.width;
+                                            // Handle multiline measurement manually if needed, but for now simple measurement:
+                                            const lines = text.split('\n');
+                                            if (lines.length > 1) {
+                                                maxWidth = 0;
+                                                lines.forEach((line: string) => {
+                                                    const m = ctx.measureText(line);
+                                                    maxWidth = Math.max(maxWidth, m.width);
+                                                });
+                                            }
+
+                                            // Line height approximation
+                                            const lineHeight = newFontSize * 1.2;
+                                            const totalHeight = lineHeight * lines.length;
+
+                                            updates.width = maxWidth + 10; // Padding
+                                            updates.height = totalHeight;
+                                        }
+                                    }
                                     updateSelectedElement(updates);
                                 }
                             };
@@ -2038,30 +2208,6 @@ export function Canva() {
                                 <>
                                     {currentStyle.type === 'text' ? (
                                         <>
-                                            <div className="panel-section">
-                                                <span className="panel-label">Fonte</span>
-                                                <div className="text-controls" style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
-                                                    <select
-                                                        className="font-select"
-                                                        value={currentStyle.fontFamily || 'Inter, sans-serif'}
-                                                        onChange={(e) => handleStyleUpdate({ fontFamily: e.target.value })}
-                                                        style={{ flex: 1, padding: '4px', borderRadius: '4px', border: '1px solid #333', background: '#222', color: '#fff' }}
-                                                    >
-                                                        <option value="Inter, sans-serif">Inter</option>
-                                                        <option value="Arial, sans-serif">Arial</option>
-                                                        <option value="Times New Roman, serif">Times New Roman</option>
-                                                        <option value="Courier New, monospace">Courier New</option>
-                                                        <option value="Brush Script MT, cursive">Brush Script</option>
-                                                    </select>
-                                                    <input
-                                                        type="number"
-                                                        value={currentStyle.fontSize || 20}
-                                                        onChange={(e) => handleStyleUpdate({ fontSize: parseInt(e.target.value) })}
-                                                        style={{ width: '60px', padding: '4px', borderRadius: '4px', border: '1px solid #333', background: '#222', color: '#fff' }}
-                                                    />
-                                                </div>
-                                            </div>
-
                                             <div className="panel-section">
                                                 <span className="panel-label">Cor</span>
                                                 <div className="color-grid">
@@ -2073,6 +2219,68 @@ export function Canva() {
                                                             onClick={() => handleStyleUpdate({ stroke: color })}
                                                         />
                                                     ))}
+                                                </div>
+                                            </div>
+
+                                            <div className="panel-section">
+                                                <span className="panel-label">Fonte</span>
+                                                <div className="text-controls" style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '8px' }}>
+                                                    <select
+                                                        className="font-select"
+                                                        value={currentStyle.fontFamily || 'Inter, sans-serif'}
+                                                        onChange={(e) => handleStyleUpdate({ fontFamily: e.target.value })}
+                                                        style={{ width: '100%', padding: '4px', borderRadius: '4px', border: '1px solid #333', background: '#222', color: '#fff' }}
+                                                    >
+                                                        <option value="Inter, sans-serif" style={{ fontFamily: 'Inter, sans-serif' }}>Inter</option>
+                                                        <option value="Arial, sans-serif" style={{ fontFamily: 'Arial, sans-serif' }}>Arial</option>
+                                                        <option value="Times New Roman, serif" style={{ fontFamily: 'Times New Roman, serif' }}>Times New Roman</option>
+                                                        <option value="Courier New, monospace" style={{ fontFamily: 'Courier New, monospace' }}>Courier New</option>
+                                                        <option value="Brush Script MT, cursive" style={{ fontFamily: 'Brush Script MT, cursive' }}>Brush Script</option>
+                                                    </select>
+                                                </div>
+                                            </div>
+
+                                            <div className="panel-section">
+                                                <span className="panel-label" style={{ display: 'flex', justifyContent: 'space-between' }}>
+                                                    Tamanho <span>{Math.round(currentStyle.fontSize || 20)}px</span>
+                                                </span>
+                                                <div className="slider-container" style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                                    <input
+                                                        type="range"
+                                                        min="12"
+                                                        max="96"
+                                                        value={Math.round(currentStyle.fontSize || 20)}
+                                                        onChange={(e) => handleStyleUpdate({ fontSize: parseInt(e.target.value) })}
+                                                        className="custom-slider"
+                                                        style={{ flex: 1 }}
+                                                    />
+                                                </div>
+                                            </div>
+
+                                            <div className="panel-section">
+                                                <span className="panel-label">Alinhamento</span>
+                                                <div className="style-grid">
+                                                    <button
+                                                        className={`style-btn ${(!currentStyle.textAlign || currentStyle.textAlign === 'left') ? 'active' : ''}`}
+                                                        onClick={() => handleStyleUpdate({ textAlign: 'left' })}
+                                                        title="Esquerda"
+                                                    >
+                                                        <AlignLeft size={16} />
+                                                    </button>
+                                                    <button
+                                                        className={`style-btn ${currentStyle.textAlign === 'center' ? 'active' : ''}`}
+                                                        onClick={() => handleStyleUpdate({ textAlign: 'center' })}
+                                                        title="Centralizar"
+                                                    >
+                                                        <AlignCenter size={16} />
+                                                    </button>
+                                                    <button
+                                                        className={`style-btn ${currentStyle.textAlign === 'right' ? 'active' : ''}`}
+                                                        onClick={() => handleStyleUpdate({ textAlign: 'right' })}
+                                                        title="Direita"
+                                                    >
+                                                        <AlignRight size={16} />
+                                                    </button>
                                                 </div>
                                             </div>
                                         </>
@@ -2156,38 +2364,6 @@ export function Canva() {
                                                         </div>
                                                     </div>
 
-                                                    <div className="panel-section">
-                                                        <span className="panel-label">Precisão do traço</span>
-                                                        <div className="style-grid">
-                                                            <button
-                                                                className={`style-btn ${currentStyle.roughness === 0 ? 'active' : ''}`}
-                                                                onClick={() => handleStyleUpdate({ roughness: 0 })}
-                                                                title="Suave"
-                                                            >
-                                                                <svg width="20" height="14" viewBox="0 0 20 14">
-                                                                    <path d="M2 12 Q10 2, 18 12" stroke="currentColor" strokeWidth="2" fill="none" />
-                                                                </svg>
-                                                            </button>
-                                                            <button
-                                                                className={`style-btn ${currentStyle.roughness === 1 ? 'active' : ''}`}
-                                                                onClick={() => handleStyleUpdate({ roughness: 1 })}
-                                                                title="Normal"
-                                                            >
-                                                                <svg width="20" height="14" viewBox="0 0 20 14">
-                                                                    <path d="M2 12 Q5 8, 7 10 Q10 2, 13 8 Q16 6, 18 12" stroke="currentColor" strokeWidth="2" fill="none" />
-                                                                </svg>
-                                                            </button>
-                                                            <button
-                                                                className={`style-btn ${currentStyle.roughness === 2 ? 'active' : ''}`}
-                                                                onClick={() => handleStyleUpdate({ roughness: 2 })}
-                                                                title="Áspero"
-                                                            >
-                                                                <svg width="20" height="14" viewBox="0 0 20 14">
-                                                                    <path d="M2 10 L4 6 L6 11 L8 4 L10 9 L12 5 L14 10 L16 7 L18 11" stroke="currentColor" strokeWidth="2" fill="none" />
-                                                                </svg>
-                                                            </button>
-                                                        </div>
-                                                    </div>
                                                 </>
                                             )}
 
@@ -2296,7 +2472,7 @@ export function Canva() {
                                                 max="100"
                                                 value={currentStyle.opacity * 100}
                                                 onChange={(e) => handleStyleUpdate({ opacity: parseInt(e.target.value) / 100 })}
-                                                className="opacity-slider"
+                                                className="custom-slider"
                                             />
                                             <span className="opacity-value">{Math.round(currentStyle.opacity * 100)}</span>
                                         </div>
@@ -2346,7 +2522,7 @@ export function Canva() {
                                 </>
                             );
                         })()}
-                    </div>
+                    </div >
                 )}
 
                 {/* Text editing overlay */}
@@ -2356,9 +2532,18 @@ export function Canva() {
 
                     return (
                         <textarea
-                            ref={textInputRef}
-                            className="text-edit-input"
+                            ref={(el) => {
+                                if (el) {
+                                    // Robust auto-focus
+                                    el.focus();
+                                    // Only select all if it's the initial "Texto"
+                                    if (textElement.text === 'Texto') {
+                                        el.select();
+                                    }
+                                }
+                            }}
                             style={{
+                                position: 'absolute',
                                 left: textElement.x * scale + offset.x,
                                 top: textElement.y * scale + offset.y,
                                 fontSize: (textElement.fontSize || 20) * scale,
@@ -2366,18 +2551,21 @@ export function Canva() {
                                 fontFamily: textElement.fontFamily || 'Inter, sans-serif',
                                 width: textElement.width * scale,
                                 height: textElement.height * scale,
-                                border: '1px dashed rgba(34, 197, 94, 0.5)',
+                                border: 'none',
+                                outline: '1px dashed #22c55e',
                                 background: 'transparent',
                                 padding: '0',
                                 margin: '0',
                                 overflow: 'hidden',
                                 resize: 'none',
-                                outline: 'none',
-                                textAlign: textElement.type === 'text' ? 'left' : 'center',
-                                lineHeight: '1.2'
+                                textAlign: textElement.textAlign || 'left',
+                                direction: 'ltr',
+                                lineHeight: '1.2',
+                                whiteSpace: 'pre-wrap',
+                                boxSizing: 'border-box',
+                                zIndex: 50
                             }}
                             value={textElement.text || ''}
-                            onFocus={(e) => e.target.select()}
                             onChange={(e) => {
                                 setElements(elements.map(el =>
                                     el.id === editingTextId
@@ -2394,7 +2582,6 @@ export function Canva() {
                                     setEditingTextId(null);
                                 }
                             }}
-                            autoFocus
                         />
                     );
                 })()}

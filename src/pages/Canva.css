@@ -330,7 +330,7 @@
     gap: var(--spacing-sm);
 }
 
-.opacity-slider {
+.custom-slider {
     flex: 1;
     height: 4px;
     -webkit-appearance: none;
@@ -340,18 +340,18 @@
     outline: none;
 }
 
-.opacity-slider::-webkit-slider-thumb {
+.custom-slider::-webkit-slider-thumb {
     -webkit-appearance: none;
     appearance: none;
     width: 14px;
     height: 14px;
-    background: var(--text-primary);
+    background: var(--accent-green);
     border-radius: 50%;
     cursor: pointer;
     transition: transform var(--transition-fast);
 }
 
-.opacity-slider::-webkit-slider-thumb:hover {
+.custom-slider::-webkit-slider-thumb:hover {
     transform: scale(1.2);
 }
 
