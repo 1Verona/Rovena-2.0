@@ -21,18 +21,13 @@
     margin-bottom: var(--spacing-xl);
 }
 
-.login-logo {
+.login-logo-img {
     width: 64px;
     height: 64px;
-    background: var(--gradient-accent);
-    border-radius: var(--radius-lg);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-weight: 700;
-    font-size: 2rem;
-    color: #000;
+    object-fit: contain;
     margin: 0 auto var(--spacing-lg);
+    border-radius: 12px;
+    display: block;
 }
 
 .login-title {

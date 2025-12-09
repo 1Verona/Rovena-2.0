@@ -20,17 +20,11 @@
     border-bottom: 1px solid var(--border-color);
 }
 
-.sidebar-logo {
-    width: 36px;
-    height: 36px;
-    background: var(--gradient-accent);
-    border-radius: var(--radius-md);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-weight: 700;
-    font-size: 1.25rem;
-    color: #000;
+.sidebar-logo-img {
+    width: 32px;
+    height: 32px;
+    object-fit: contain;
+    border-radius: 6px;
 }
 
 .sidebar-title {
