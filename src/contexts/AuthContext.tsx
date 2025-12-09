@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { User, onAuthStateChanged, signOut } from 'firebase/auth';
-import { auth, checkSubscription, getUserTokens } from '../services/firebase';
+import { auth } from '../services/firebase';
 
 interface UserData {
     email: string;
@@ -40,23 +40,22 @@ export function AuthProvider({ children }: AuthProviderProps) {
     const [loading, setLoading] = useState(true);
 
     const fetchUserData = async (currentUser: User) => {
+        // For now, use default values until Firebase Functions are deployed
+        // This allows the app to work without the backend
         try {
-            // Get subscription status from Stripe
-            const subscriptionResult = await checkSubscription();
-            const subscriptionData = subscriptionResult.data as any;
-
-            // Get token usage from Firestore
-            const tokensResult = await getUserTokens();
-            const tokensData = tokensResult.data as any;
+            // TODO: Uncomment when Firebase Functions are deployed
+            // const subscriptionResult = await checkSubscription();
+            // const subscriptionData = subscriptionResult.data as any;
+            // const tokensResult = await getUserTokens();
+            // const tokensData = tokensResult.data as any;
 
             setUserData({
                 email: currentUser.email || '',
-                plan: subscriptionData.plan || 'free',
-                tokensLimit: subscriptionData.tokensLimit || 10000,
-                tokensUsed: tokensData.tokensUsed || 0,
-                messagesCount: tokensData.messagesCount || 0,
-                interactionsCount: tokensData.interactionsCount || 0,
-                subscriptionId: subscriptionData.subscriptionId,
+                plan: 'free', // Default to free plan
+                tokensLimit: 10000,
+                tokensUsed: 0,
+                messagesCount: 0,
+                interactionsCount: 0,
             });
         } catch (error) {
             console.error('Error fetching user data:', error);
