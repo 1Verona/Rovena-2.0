@@ -5,7 +5,8 @@ import {
     signInWithPopup,
 } from 'firebase/auth';
 import { auth, googleProvider } from '../services/firebase';
-import { LogIn, UserPlus, Loader2 } from 'lucide-react';
+import { LogIn, UserPlus } from 'lucide-react';
+import '../index.css';
 import './Login.css';
 
 interface LoginProps {
