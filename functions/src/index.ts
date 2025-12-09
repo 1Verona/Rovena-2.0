@@ -81,23 +81,33 @@ async function getUserPlan(email: string) {
 
     // Check ALL found customers
     for (const customer of customers.data) {
+        console.log(`Checking customer: ${customer.id}`);
+
         // 2. Check active subscriptions (Monthly/Annual)
+        // Fetch all to debug status
         const subscriptions = await stripe.subscriptions.list({
             customer: customer.id,
-            status: 'active',
-            limit: 10,
+            limit: 20,
         });
 
         for (const subscription of subscriptions.data) {
-            for (const item of subscription.items.data) {
-                const productId = item.price.product as string;
-                if (Object.values(PRODUCT_IDS).includes(productId)) {
-                    return {
-                        plan: 'plus',
-                        tokensLimit: TOKEN_LIMITS.plus,
-                        subscriptionId: subscription.id,
-                        productId: productId,
-                    };
+            console.log(`Found subscription ${subscription.id} with status ${subscription.status}`);
+
+            // Allow active and trialing
+            if (['active', 'trialing'].includes(subscription.status)) {
+                for (const item of subscription.items.data) {
+                    const productId = item.price.product as string;
+                    console.log(`Subscription item product: ${productId} (Expected active: ${JSON.stringify(Object.values(PRODUCT_IDS))})`);
+
+                    if (Object.values(PRODUCT_IDS).includes(productId)) {
+                        console.log(`Matched subscription plan: ${productId}`);
+                        return {
+                            plan: 'plus',
+                            tokensLimit: TOKEN_LIMITS.plus,
+                            subscriptionId: subscription.id,
+                            productId: productId,
+                        };
+                    }
                 }
             }
         }
@@ -106,15 +116,20 @@ async function getUserPlan(email: string) {
         const sessions = await stripe.checkout.sessions.list({
             customer: customer.id,
             status: 'complete',
-            limit: 10,
+            limit: 20,
             expand: ['data.line_items'],
         });
 
         for (const session of sessions.data) {
-            if (session.line_items) {
+            if (session.payment_status === 'paid' && session.line_items) {
                 for (const item of session.line_items.data) {
                     const price = item.price;
-                    if (price && price.product === PRODUCT_IDS.LIFETIME) {
+                    const productId = price?.product as string;
+
+                    console.log(`Found session item product: ${productId}`);
+
+                    if (productId === PRODUCT_IDS.LIFETIME) {
+                        console.log('Matched Lifetime plan!');
                         return {
                             plan: 'plus',
                             tokensLimit: TOKEN_LIMITS.plus,
@@ -127,6 +142,7 @@ async function getUserPlan(email: string) {
         }
     }
 
+    console.log('No plan found, returning free.');
     return { plan: 'free', tokensLimit: TOKEN_LIMITS.free };
 }
 
