@@ -46,13 +46,6 @@
             "x64",
             "arm64"
           ]
-        },
-        {
-          "target": "zip",
-          "arch": [
-            "x64",
-            "arm64"
-          ]
         }
       ],
       "icon": "public/icon.icns"
@@ -62,8 +55,7 @@
         {
           "target": "nsis",
           "arch": [
-            "x64",
-            "ia32"
+            "x64"
           ]
         }
       ],
