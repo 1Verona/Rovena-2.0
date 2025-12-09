@@ -67,6 +67,7 @@ firebase functions:config:set stripe.secret_key="sk_xxx" openai.api_key="sk-xxx"
 - **Home**: Dashboard com tokens, estatísticas e to-dos
 - **Chats**: Conversas com IA (em breve)
 - **Images**: Geração de imagens (em breve)
+- **Canva**: Canva infinito para diagramas, esboços e fluxogramas (em breve)
 - **Archives**: Histórico de interações (em breve)
 - **Charts**: Visualização de dados (em breve)
 - **Presentations**: Geração de slides (em breve)
