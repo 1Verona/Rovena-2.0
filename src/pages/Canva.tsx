@@ -1030,8 +1030,13 @@ export function Canva() {
                         setSelectedElements(duplicates.map(d => d.id));
                     } else {
                         if (!e.shiftKey) {
-                            setElements(elements.map(el => ({ ...el, selected: el.id === clickedElement.id })));
-                            setSelectedElements([clickedElement.id]);
+                            // If clicking on an element that is ALREADY selected, 
+                            // keep the current selection (to allow dragging the group).
+                            // Only reset selection if clicking on an unselected element.
+                            if (!selectedElements.includes(clickedElement.id)) {
+                                setElements(elements.map(el => ({ ...el, selected: el.id === clickedElement.id })));
+                                setSelectedElements([clickedElement.id]);
+                            }
                         } else {
                             const isSelected = selectedElements.includes(clickedElement.id);
                             const newSelectedIds = isSelected
