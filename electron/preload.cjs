@@ -5,5 +5,5 @@ contextBridge.exposeInMainWorld('electronAPI', {
     checkForUpdates: () => ipcRenderer.invoke('check-for-updates'),
     onUpdateStatus: (callback) => ipcRenderer.on('update-status', (event, value) => callback(value)),
     removeUpdateStatusListener: (callback) => ipcRenderer.removeListener('update-status', callback),
-    quitAndInstall: () => ipcRenderer.invoke('quit-and-install')
+    quitAndInstall: () => ipcRenderer.send('quit-and-install')
 });

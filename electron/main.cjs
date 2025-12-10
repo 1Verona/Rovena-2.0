@@ -151,7 +151,13 @@ ipcMain.handle('check-for-updates', async () => {
     }
 });
 
-ipcMain.handle('quit-and-install', () => {
-    console.log('User requested quit and install...');
-    autoUpdater.quitAndInstall(false, true);
+ipcMain.on('quit-and-install', () => {
+    console.log('IPC: quit-and-install received. Executing autoUpdater.quitAndInstall(false, true)');
+
+    // Attempt to quit and install
+    try {
+        autoUpdater.quitAndInstall(false, true);
+    } catch (e) {
+        console.error('Error executing quitAndInstall:', e);
+    }
 });
