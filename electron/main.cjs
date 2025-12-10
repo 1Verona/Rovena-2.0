@@ -150,3 +150,7 @@ ipcMain.handle('check-for-updates', async () => {
         sendStatusToWindow('Error: ' + error.message);
     }
 });
+
+ipcMain.handle('quit-and-install', () => {
+    autoUpdater.quitAndInstall();
+});

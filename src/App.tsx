@@ -11,6 +11,7 @@ import {
     checkSubscription,
     getUserTokens
 } from './services/firebase';
+import { Modal } from './components/Modal/Modal';
 import { Sidebar } from './components/Sidebar/Sidebar';
 import { Home } from './pages/Home';
 import { Login } from './pages/Login';
@@ -46,6 +47,7 @@ function App() {
     const [tokensUsed, setTokensUsed] = useState(0);
     const [tokensLimit, setTokensLimit] = useState(10000);
     const [subscriptionId, setSubscriptionId] = useState<string | undefined>(undefined);
+    const [showUpdateModal, setShowUpdateModal] = useState(false);
 
     const fetchUserData = async () => {
         if (!user) return;
@@ -79,6 +81,16 @@ function App() {
                 setLoading(false);
             }
         });
+
+        // Listen for updates globally
+        if ((window as any).electronAPI) {
+            (window as any).electronAPI.onUpdateStatus((status: any) => {
+                if (status && status.text === 'Update downloaded') {
+                    setShowUpdateModal(true);
+                }
+            });
+        }
+
         return () => unsub();
     }, []);
 
@@ -149,6 +161,32 @@ function App() {
                     )
                 } />
             </Routes>
+
+            {/* Global Update Modal */}
+            <Modal
+                isOpen={showUpdateModal}
+                onClose={() => setShowUpdateModal(false)}
+                title="Nova Versão Disponível"
+                footer={
+                    <>
+                        <button className="btn btn-secondary" onClick={() => setShowUpdateModal(false)}>
+                            Instalar Depois
+                        </button>
+                        <button
+                            className="btn btn-primary"
+                            onClick={() => {
+                                if ((window as any).electronAPI) {
+                                    (window as any).electronAPI.quitAndInstall();
+                                }
+                            }}
+                        >
+                            Reiniciar e Instalar
+                        </button>
+                    </>
+                }
+            >
+                <p>Uma nova atualização foi baixada. Reinicie o aplicativo agora para aplicar as mudanças.</p>
+            </Modal>
         </HashRouter>
     );
 }
