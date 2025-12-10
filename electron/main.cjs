@@ -4,8 +4,38 @@ const { autoUpdater } = require('electron-updater');
 
 const isDev = process.env.NODE_ENV === 'development';
 
-const serve = require('electron-serve');
-const loadURL = serve({ directory: path.join(__dirname, '../dist') });
+const http = require('http');
+
+let activeServerUrl = null;
+
+async function startLocalServer() {
+    if (activeServerUrl) return activeServerUrl;
+
+    const handler = (await import('serve-handler')).default;
+
+    return new Promise((resolve, reject) => {
+        const server = http.createServer((request, response) => {
+            return handler(request, response, {
+                public: path.join(__dirname, '../dist'),
+                rewrites: [
+                    { source: '**', destination: '/index.html' }
+                ]
+            });
+        });
+
+        server.listen(5173, () => {
+            const port = 5173;
+            activeServerUrl = `http://localhost:${port}`;
+            console.log('Server running at:', activeServerUrl);
+            resolve(activeServerUrl);
+        });
+
+        server.on('error', (err) => {
+            console.error('Server failed to start:', err);
+            reject(err);
+        });
+    });
+}
 
 async function createWindow() {
     const mainWindow = new BrowserWindow({
@@ -28,7 +58,12 @@ async function createWindow() {
         mainWindow.loadURL('http://localhost:5173');
         mainWindow.webContents.openDevTools();
     } else {
-        await loadURL(mainWindow);
+        try {
+            const url = await startLocalServer();
+            mainWindow.loadURL(url);
+        } catch (err) {
+            console.error('Failed to load local server:', err);
+        }
     }
 }
 
