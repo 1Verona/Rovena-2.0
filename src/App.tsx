@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, lazy, Suspense } from 'react';
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { initializeApp } from 'firebase/app';
 import {
@@ -13,15 +13,16 @@ import {
 } from './services/firebase';
 import { Modal } from './components/Modal/Modal';
 import { Sidebar } from './components/Sidebar/Sidebar';
-import { Home } from './pages/Home';
+// Lazy load pages for performance optimization
+const Home = lazy(() => import('./pages/Home').then(module => ({ default: module.Home })));
+const Chats = lazy(() => import('./pages/Chats').then(module => ({ default: module.Chats })));
+const Images = lazy(() => import('./pages/Images').then(module => ({ default: module.Images })));
+const Canva = lazy(() => import('./pages/Canva').then(module => ({ default: module.Canva })));
+const Archives = lazy(() => import('./pages/Archives').then(module => ({ default: module.Archives })));
+const Charts = lazy(() => import('./pages/Charts').then(module => ({ default: module.Charts })));
+const Presentations = lazy(() => import('./pages/Presentations').then(module => ({ default: module.Presentations })));
+const Settings = lazy(() => import('./pages/Settings').then(module => ({ default: module.Settings })));
 import { Login } from './pages/Login';
-import { Chats } from './pages/Chats';
-import { Images } from './pages/Images';
-import { Canva } from './pages/Canva';
-import { Archives } from './pages/Archives';
-import { Charts } from './pages/Charts';
-import { Presentations } from './pages/Presentations';
-import { Settings } from './pages/Settings';
 import './pages/Login.css';
 import './index.css';
 
@@ -133,27 +134,33 @@ function App() {
                                 onLogout={handleLogout}
                             />
                             <main className="main-content">
-                                <Routes>
-                                    <Route path="/" element={<Home tokensUsed={tokensUsed} tokensLimit={tokensLimit} />} />
-                                    <Route path="/chats" element={<Chats />} />
-                                    <Route path="/images" element={<Images />} />
-                                    <Route path="/canva" element={<Canva />} />
-                                    <Route path="/archives" element={<Archives />} />
-                                    <Route path="/charts" element={<Charts />} />
-                                    <Route path="/presentations" element={<Presentations />} />
-                                    <Route path="/settings" element={
-                                        <Settings
-                                            userEmail={user.email || ''}
-                                            userPlan={userPlan}
-                                            tokensUsed={tokensUsed}
-                                            tokensLimit={tokensLimit}
-                                            subscriptionId={subscriptionId}
-                                            onLogout={handleLogout}
-                                            onCancelPlan={fetchUserData}
-                                        />
-                                    } />
-                                    <Route path="*" element={<Navigate to="/" />} />
-                                </Routes>
+                                <Suspense fallback={
+                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', width: '100%' }}>
+                                        <div className="spinner" style={{ width: 30, height: 30, borderWidth: 2 }}></div>
+                                    </div>
+                                }>
+                                    <Routes>
+                                        <Route path="/" element={<Home tokensUsed={tokensUsed} tokensLimit={tokensLimit} />} />
+                                        <Route path="/chats" element={<Chats />} />
+                                        <Route path="/images" element={<Images />} />
+                                        <Route path="/canva" element={<Canva />} />
+                                        <Route path="/archives" element={<Archives />} />
+                                        <Route path="/charts" element={<Charts />} />
+                                        <Route path="/presentations" element={<Presentations />} />
+                                        <Route path="/settings" element={
+                                            <Settings
+                                                userEmail={user.email || ''}
+                                                userPlan={userPlan}
+                                                tokensUsed={tokensUsed}
+                                                tokensLimit={tokensLimit}
+                                                subscriptionId={subscriptionId}
+                                                onLogout={handleLogout}
+                                                onCancelPlan={fetchUserData}
+                                            />
+                                        } />
+                                        <Route path="*" element={<Navigate to="/" />} />
+                                    </Routes>
+                                </Suspense>
                             </main>
                         </div>
                     ) : (
