@@ -23,8 +23,8 @@ async function startLocalServer() {
             });
         });
 
-        server.listen(0, () => {
-            const port = server.address().port;
+        server.listen(5173, () => {
+            const port = 5173;
             activeServerUrl = `http://localhost:${port}`;
             console.log('Server running at:', activeServerUrl);
             resolve(activeServerUrl);
