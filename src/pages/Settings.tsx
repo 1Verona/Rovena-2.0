@@ -30,6 +30,7 @@ export function Settings({ userEmail, userPlan, tokensUsed, tokensLimit, subscri
     const [updateStatus, setUpdateStatus] = useState<string | null>(null);
     const [downloadProgress, setDownloadProgress] = useState<any>(null);
     const [releaseNotes, setReleaseNotes] = useState<string | null>(null);
+    const [updateAvailableInfo, setUpdateAvailableInfo] = useState<any>(null);
 
     useEffect(() => {
         // Get App Version
@@ -44,8 +45,20 @@ export function Settings({ userEmail, userPlan, tokensUsed, tokensLimit, subscri
                 if (status.text === 'download-progress') {
                     setDownloadProgress(status.data);
                     setUpdateStatus(`Baixando atualização: ${Math.round(status.data.percent)}%`);
-                } else if (status.text === 'Update available.') {
-                    setUpdateStatus('Nova versão disponível! Baixando...');
+                } else if (status.text === 'update-available') {
+                    const info = status.data;
+                    const skipped = localStorage.getItem('skipped-version');
+                    if (skipped === info.version) {
+                        // silently ignore or show "Skipped update available" if we wanted
+                        // For now, let's just not prompt automatically, BUT since this is triggered by "Check for updates" (manual)
+                        // we SHOULD show it even if skipped. Skips usually apply to auto-checks.
+                        // But if we want to respect it:
+                        // setUpdateStatus('Versão ' + info.version + ' disponível (ignorada).');
+                    }
+
+                    setUpdateStatus('Nova versão disponível!');
+                    setUpdateAvailableInfo(info);
+
                     // Try to extract release notes if available in data
                     if (status.data && status.data.releaseNotes) {
                         // releaseNotes can be array or string
@@ -54,16 +67,27 @@ export function Settings({ userEmail, userPlan, tokensUsed, tokensLimit, subscri
                             : status.data.releaseNotes;
                         setReleaseNotes(notes);
                     }
-                } else if (status.text === 'Update downloaded') {
+                } else if (status.text === 'update-downloaded') {
                     setUpdateStatus('Atualização pronta! Reinicie o app para instalar.');
                     setDownloadProgress(null);
-                } else if (status.text === 'Update not available' || status.text === 'Update not available.') {
+                } else if (status.text === 'update-not-available') {
                     setUpdateStatus('Você já está na versão mais recente.');
                     setDownloadProgress(null);
+                    setUpdateAvailableInfo(null);
+                    setReleaseNotes(null);
                 } else {
-                    setUpdateStatus(status.text);
+                    // unexpected text
+                    if (status.text) setUpdateStatus(status.text);
                 }
             });
+
+            if ((window as any).electronAPI.onUpdateError) {
+                (window as any).electronAPI.onUpdateError((error: string) => {
+                    console.error("Update Error received:", error);
+                    setUpdateStatus('Erro na atualização: ' + error);
+                    setDownloadProgress(null);
+                });
+            }
         }
     }, []);
 
@@ -71,6 +95,7 @@ export function Settings({ userEmail, userPlan, tokensUsed, tokensLimit, subscri
         if ((window as any).electronAPI) {
             setUpdateStatus('Checking for updates...');
             setReleaseNotes(null);
+            setUpdateAvailableInfo(null);
             (window as any).electronAPI.checkForUpdates();
         } else {
             alert('Atualizações automáticas disponíveis apenas na versão Desktop.');
@@ -336,8 +361,50 @@ export function Settings({ userEmail, userPlan, tokensUsed, tokensLimit, subscri
                         {updateStatus && (
                             <div className="setting-item" style={{ marginTop: 16, display: 'block', borderTop: '1px solid var(--border-color)', paddingTop: 16 }}>
                                 <div className="status-message" style={{ color: 'var(--accent-blue)', marginBottom: 8, fontWeight: 500 }}>
-                                    {typeof updateStatus === 'string' ? updateStatus : 'Atualizando...'}
+                                    {updateStatus}
                                 </div>
+
+                                {/* Actions: Download / Skip / Restart */}
+                                {updateAvailableInfo && !downloadProgress && updateStatus !== 'Atualização pronta! Reinicie o app para instalar.' && (
+                                    <div style={{ display: 'flex', gap: '10px', marginTop: 10 }}>
+                                        <button
+                                            className="btn btn-primary"
+                                            onClick={() => {
+                                                if ((window as any).electronAPI) {
+                                                    (window as any).electronAPI.startDownload();
+                                                }
+                                            }}
+                                        >
+                                            Baixar Atualização (v{updateAvailableInfo.version})
+                                        </button>
+                                        <button
+                                            className="btn btn-secondary"
+                                            onClick={() => {
+                                                // Skip logic
+                                                localStorage.setItem('skipped-version', updateAvailableInfo.version);
+                                                setUpdateStatus('Versão ignorada.');
+                                                setUpdateAvailableInfo(null);
+                                                setReleaseNotes(null);
+                                            }}
+                                        >
+                                            Pular esta versão
+                                        </button>
+                                    </div>
+                                )}
+
+                                {updateStatus === 'Atualização pronta! Reinicie o app para instalar.' && (
+                                    <button
+                                        className="btn btn-primary"
+                                        style={{ marginTop: 10 }}
+                                        onClick={() => {
+                                            if ((window as any).electronAPI) {
+                                                (window as any).electronAPI.quitAndInstall();
+                                            }
+                                        }}
+                                    >
+                                        Reiniciar e Instalar
+                                    </button>
+                                )}
 
                                 {/* Download Progress Bar */}
                                 {downloadProgress && (
@@ -357,7 +424,7 @@ export function Settings({ userEmail, userPlan, tokensUsed, tokensLimit, subscri
                                 {/* Release Notes */}
                                 {releaseNotes && (
                                     <div className="release-notes" style={{ marginTop: 16, background: 'var(--bg-secondary)', padding: 12, borderRadius: 8 }}>
-                                        <h4 style={{ margin: '0 0 8px 0', fontSize: '0.9rem', color: 'var(--text-primary)' }}>Novidades da versão:</h4>
+                                        <h4 style={{ margin: '0 0 8px 0', fontSize: '0.9rem', color: 'var(--text-primary)' }}>Novidades da versão v{updateAvailableInfo?.version}:</h4>
                                         <div
                                             style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', whiteSpace: 'pre-wrap', lineHeight: 1.5 }}
                                             dangerouslySetInnerHTML={{ __html: releaseNotes }}
