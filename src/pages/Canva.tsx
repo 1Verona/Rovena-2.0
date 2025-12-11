@@ -26,6 +26,13 @@ import {
     AlignLeft,
     AlignCenter,
     AlignRight,
+    Plus,
+    FileImage,
+    ChevronLeft,
+    ChevronRight,
+    Edit2,
+    Check,
+    X,
 } from 'lucide-react';
 import './Canva.css';
 
@@ -60,14 +67,23 @@ interface CanvasElement {
     fontFamily?: string;
     textAlign?: 'left' | 'center' | 'right';
     points?: Point[];
-    controlPoint?: Point; // For lines/arrows mid-point
-    lineStyle: 'straight' | 'elbow' | 'curve'; // Type of line connection
-    arrowStart: 'none' | 'arrow' | 'dot'; // Start endpoint style
-    arrowEnd: 'none' | 'arrow' | 'dot'; // End endpoint style
+    controlPoint?: Point;
+    lineStyle: 'straight' | 'elbow' | 'curve';
+    arrowStart: 'none' | 'arrow' | 'dot';
+    arrowEnd: 'none' | 'arrow' | 'dot';
     startConnection?: string;
     endConnection?: string;
     locked: boolean;
     selected: boolean;
+    imageData?: string; // Base64 image data for image elements
+}
+
+interface SavedCanvas {
+    id: string;
+    name: string;
+    elements: CanvasElement[];
+    createdAt: number;
+    updatedAt: number;
 }
 
 interface ToolButton {
@@ -105,6 +121,69 @@ const strokeWidths = [1, 2, 4, 8];
 // Selection color - green
 const SELECTION_COLOR = '#22c55e';
 
+interface CustomFontSelectProps {
+    value: string;
+    onChange: (value: string) => void;
+}
+
+const CustomFontSelect: React.FC<CustomFontSelectProps> = ({ value, onChange }) => {
+    const [isOpen, setIsOpen] = useState(false);
+    const dropdownRef = useRef<HTMLDivElement>(null);
+
+    const fonts = [
+        { label: 'Inter', value: 'Inter, sans-serif' },
+        { label: 'Arial', value: 'Arial, sans-serif' },
+        { label: 'Times New Roman', value: 'Times New Roman, serif' },
+        { label: 'Courier New', value: 'Courier New, monospace' },
+        { label: 'Brush Script', value: 'Brush Script MT, cursive' },
+    ];
+
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+                setIsOpen(false);
+            }
+        };
+
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => {
+            document.removeEventListener('mousedown', handleClickOutside);
+        };
+    }, []);
+
+    const selectedLabel = fonts.find(f => f.value === value)?.label || 'Inter';
+
+    return (
+        <div className="custom-font-select-container" ref={dropdownRef}>
+            <div
+                className={`custom-font-select-trigger ${isOpen ? 'open' : ''}`}
+                onClick={() => setIsOpen(!isOpen)}
+            >
+                <span style={{ fontFamily: value }}>{selectedLabel}</span>
+                <ChevronDown size={14} className={`font-select-icon ${isOpen ? 'rotated' : ''}`} />
+            </div>
+
+            {isOpen && (
+                <div className="custom-font-select-dropdown">
+                    {fonts.map((font) => (
+                        <div
+                            key={font.value}
+                            className={`custom-font-option ${font.value === value ? 'selected' : ''}`}
+                            onClick={() => {
+                                onChange(font.value);
+                                setIsOpen(false);
+                            }}
+                            style={{ fontFamily: font.value }}
+                        >
+                            {font.label}
+                        </div>
+                    ))}
+                </div>
+            )}
+        </div>
+    );
+};
+
 export function Canva() {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const containerRef = useRef<HTMLDivElement>(null);
@@ -115,6 +194,215 @@ export function Canva() {
     const [selectedElements, setSelectedElements] = useState<string[]>([]);
     const [cursorStyle, setCursorStyle] = useState<string>('default');
     const [hoveredLock, setHoveredLock] = useState<string | null>(null);
+    const [showClearConfirm, setShowClearConfirm] = useState(false);
+
+    // Canvas management state
+    const [savedCanvases, setSavedCanvases] = useState<SavedCanvas[]>([]);
+    const [currentCanvasId, setCurrentCanvasId] = useState<string | null>(null);
+    const [canvasPanelOpen, setCanvasPanelOpen] = useState(false);
+    const [isPanelClosing, setIsPanelClosing] = useState(false);
+    const [editingCanvasName, setEditingCanvasName] = useState<string | null>(null);
+    const [tempCanvasName, setTempCanvasName] = useState('');
+
+    // Ref para manter o estado atual dos elements para o save
+    const elementsRef = useRef<CanvasElement[]>(elements);
+    const currentCanvasIdRef = useRef<string | null>(currentCanvasId);
+
+    // Manter refs atualizados
+    useEffect(() => {
+        elementsRef.current = elements;
+    }, [elements]);
+
+    useEffect(() => {
+        currentCanvasIdRef.current = currentCanvasId;
+    }, [currentCanvasId]);
+
+    const STORAGE_KEY = 'rovena_canvases';
+
+    const generateCanvasId = () => `canvas_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+    const loadCanvasesFromStorage = useCallback(() => {
+        try {
+            const stored = localStorage.getItem(STORAGE_KEY);
+            if (stored) {
+                return JSON.parse(stored) as SavedCanvas[];
+            }
+        } catch (e) {
+            console.error('Error loading canvases:', e);
+        }
+        return [];
+    }, []);
+
+    const saveCanvasesToStorage = useCallback((canvases: SavedCanvas[]) => {
+        try {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(canvases));
+        } catch (e) {
+            console.error('Error saving canvases:', e);
+        }
+    }, []);
+
+    const saveCurrentCanvas = useCallback(() => {
+        const canvasId = currentCanvasIdRef.current;
+        const currentElements = elementsRef.current;
+        if (!canvasId) return;
+
+        setSavedCanvases(prev => {
+            const updated = prev.map(c => {
+                if (c.id === canvasId) {
+                    return { ...c, elements: currentElements, updatedAt: Date.now() };
+                }
+                return c;
+            });
+            saveCanvasesToStorage(updated);
+            return updated;
+        });
+    }, [saveCanvasesToStorage]);
+
+    const createNewCanvas = useCallback(() => {
+        saveCurrentCanvas();
+
+        const newCanvas: SavedCanvas = {
+            id: generateCanvasId(),
+            name: `Canvas ${savedCanvases.length + 1}`,
+            elements: [],
+            createdAt: Date.now(),
+            updatedAt: Date.now(),
+        };
+
+        const updated = [...savedCanvases, newCanvas];
+        setSavedCanvases(updated);
+        saveCanvasesToStorage(updated);
+        setCurrentCanvasId(newCanvas.id);
+        setElements([]);
+        setSelectedElements([]);
+        setHistory([[]]);
+        setHistoryIndex(0);
+        setOffset({ x: 0, y: 0 });
+        setScale(1);
+    }, [savedCanvases, saveCurrentCanvas, saveCanvasesToStorage]);
+
+    const switchCanvas = useCallback((canvasId: string) => {
+        if (canvasId === currentCanvasId) return;
+
+        saveCurrentCanvas();
+
+        const canvas = savedCanvases.find(c => c.id === canvasId);
+        if (canvas) {
+            setCurrentCanvasId(canvasId);
+            setElements(canvas.elements);
+            setSelectedElements([]);
+            setHistory([canvas.elements]);
+            setHistoryIndex(0);
+            setOffset({ x: 0, y: 0 });
+            setScale(1);
+            setEditingTextId(null);
+        }
+    }, [currentCanvasId, savedCanvases, saveCurrentCanvas]);
+
+    const deleteCanvas = useCallback((canvasId: string) => {
+        const updated = savedCanvases.filter(c => c.id !== canvasId);
+        setSavedCanvases(updated);
+        saveCanvasesToStorage(updated);
+
+        if (canvasId === currentCanvasId) {
+            if (updated.length > 0) {
+                switchCanvas(updated[0].id);
+            } else {
+                createNewCanvas();
+            }
+        }
+    }, [savedCanvases, currentCanvasId, saveCanvasesToStorage, switchCanvas, createNewCanvas]);
+
+    const renameCanvas = useCallback((canvasId: string, newName: string) => {
+        if (!newName.trim()) return;
+        setSavedCanvases(prev => {
+            const updated = prev.map(c =>
+                c.id === canvasId ? { ...c, name: newName.trim(), updatedAt: Date.now() } : c
+            );
+            saveCanvasesToStorage(updated);
+            return updated;
+        });
+        setEditingCanvasName(null);
+        setTempCanvasName('');
+    }, [saveCanvasesToStorage]);
+
+    const startRenamingCanvas = useCallback((canvasId: string, currentName: string) => {
+        setEditingCanvasName(canvasId);
+        setTempCanvasName(currentName);
+    }, []);
+
+    const cancelRenamingCanvas = useCallback(() => {
+        setEditingCanvasName(null);
+        setTempCanvasName('');
+    }, []);
+
+    // Handle panel close with animation
+    const handleClosePanel = useCallback(() => {
+        setIsPanelClosing(true);
+        setTimeout(() => {
+            setCanvasPanelOpen(false);
+            setIsPanelClosing(false);
+        }, 200);
+    }, []);
+
+    useEffect(() => {
+        const canvases = loadCanvasesFromStorage();
+        if (canvases.length > 0) {
+            setSavedCanvases(canvases);
+            const lastCanvas = canvases[canvases.length - 1];
+            setCurrentCanvasId(lastCanvas.id);
+            setElements(lastCanvas.elements);
+            setHistory([lastCanvas.elements]);
+        } else {
+            const initialCanvas: SavedCanvas = {
+                id: generateCanvasId(),
+                name: 'Canvas 1',
+                elements: [],
+                createdAt: Date.now(),
+                updatedAt: Date.now(),
+            };
+            setSavedCanvases([initialCanvas]);
+            saveCanvasesToStorage([initialCanvas]);
+            setCurrentCanvasId(initialCanvas.id);
+        }
+    }, []);
+
+    useEffect(() => {
+        const handleBeforeUnload = () => {
+            saveCurrentCanvas();
+        };
+        window.addEventListener('beforeunload', handleBeforeUnload);
+        return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+    }, [saveCurrentCanvas]);
+
+    useEffect(() => {
+        const handleVisibilityChange = () => {
+            if (document.hidden) {
+                saveCurrentCanvas();
+            }
+        };
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+        return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+    }, [saveCurrentCanvas]);
+
+    // Salvar quando elements mudam (debounced)
+    useEffect(() => {
+        if (!currentCanvasId) return;
+        const timeout = setTimeout(() => {
+            saveCurrentCanvas();
+        }, 500);
+        return () => clearTimeout(timeout);
+    }, [elements, currentCanvasId, saveCurrentCanvas]);
+
+    // Auto-save every 30 seconds como backup
+    useEffect(() => {
+        const autoSaveInterval = setInterval(() => {
+            if (currentCanvasIdRef.current) {
+                saveCurrentCanvas();
+            }
+        }, 30000);
+        return () => clearInterval(autoSaveInterval);
+    }, [saveCurrentCanvas]);
 
     // Default styles for new elements
     const [defaultStyles, setDefaultStyles] = useState<{
@@ -188,6 +476,10 @@ export function Canva() {
     const [erasedIds, setErasedIds] = useState<Set<string>>(new Set());
     const lastEraserPosRef = useRef<Point | null>(null);
 
+    // Image cache for rendering
+    const imageCacheRef = useRef<Map<string, HTMLImageElement>>(new Map());
+    const fileInputRef = useRef<HTMLInputElement>(null);
+
     // Get the first selected element for the floating panel
     const selectedElement = elements.find(el => selectedElements.includes(el.id));
 
@@ -244,7 +536,8 @@ export function Canva() {
 
             for (let n = 0; n < words.length; n++) {
                 const word = words[n];
-                
+
+
                 // Check if single word is wider than maxWidth
                 const wordWidth = ctx.measureText(word).width;
                 if (wordWidth > maxWidth) {
@@ -253,7 +546,8 @@ export function Canva() {
                         totalLines++;
                         line = '';
                     }
-                    
+
+
                     // Break word character by character
                     let charLine = '';
                     for (let c = 0; c < word.length; c++) {
@@ -304,7 +598,8 @@ export function Canva() {
 
             for (let n = 0; n < words.length; n++) {
                 const word = words[n];
-                
+
+
                 // Check if single word is wider than maxWidth - need to break it character by character
                 const wordWidth = ctx.measureText(word).width;
                 if (wordWidth > maxWidth) {
@@ -313,7 +608,8 @@ export function Canva() {
                         lines.push(line);
                         line = '';
                     }
-                    
+
+
                     // Break word character by character
                     let charLine = '';
                     for (let c = 0; c < word.length; c++) {
@@ -588,6 +884,87 @@ export function Canva() {
         addToHistory(newElements);
     }, [elements, selectedElements, addToHistory]);
 
+    // Handle image upload
+    const handleImageUpload = useCallback((file: File) => {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            const imageData = e.target?.result as string;
+            const img = new Image();
+            img.onload = () => {
+                // Calculate dimensions maintaining aspect ratio
+                const maxSize = 400;
+                let width = img.width;
+                let height = img.height;
+
+                if (width > maxSize || height > maxSize) {
+                    if (width > height) {
+                        height = (height / width) * maxSize;
+                        width = maxSize;
+                    } else {
+                        width = (width / height) * maxSize;
+                        height = maxSize;
+                    }
+                }
+
+                // Get center of visible canvas
+                const canvas = canvasRef.current;
+                const rect = canvas?.getBoundingClientRect();
+                const centerX = rect ? ((rect.width / 2) - offset.x) / scale : 200;
+                const centerY = rect ? ((rect.height / 2) - offset.y) / scale : 200;
+
+                const newElement: CanvasElement = {
+                    id: generateId(),
+                    type: 'image',
+                    x: centerX - width / 2,
+                    y: centerY - height / 2,
+                    width,
+                    height,
+                    rotation: 0,
+                    fill: 'transparent',
+                    stroke: 'transparent',
+                    strokeWidth: 0,
+                    strokeStyle: 'solid',
+                    roughness: 0,
+                    borderRadius: 0,
+                    opacity: 1,
+                    lineStyle: 'straight',
+                    arrowStart: 'none',
+                    arrowEnd: 'none',
+                    locked: false,
+                    selected: true,
+                    imageData,
+                };
+
+                // Cache the image
+                imageCacheRef.current.set(imageData, img);
+
+                const updatedElements = elements.map(el => ({ ...el, selected: false }));
+                const finalElements = [...updatedElements, newElement];
+                setElements(finalElements);
+                setSelectedElements([newElement.id]);
+                addToHistory(finalElements);
+                setSelectedTool('select');
+            };
+            img.src = imageData;
+        };
+        reader.readAsDataURL(file);
+    }, [elements, offset, scale, addToHistory]);
+
+    // Open file picker for images
+    const openImageFilePicker = useCallback(() => {
+        fileInputRef.current?.click();
+    }, []);
+
+    // Handle file input change
+    const handleFileInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (file && file.type.startsWith('image/')) {
+            handleImageUpload(file);
+        }
+        // Reset input so the same file can be selected again
+        e.target.value = '';
+    }, [handleImageUpload]);
+
     // Duplicate elements (Alt + drag)
     const duplicateElements = useCallback((ids: string[]) => {
         const toDuplicate = elements.filter(el => ids.includes(el.id));
@@ -676,22 +1053,32 @@ export function Canva() {
         const y = element.y;
         const w = element.width;
         const h = element.height;
-        const radius = element.borderRadius * Math.min(Math.abs(w), Math.abs(h)) * 0.2;
+        // Use borderRadius directly as units, clamped to half the size to prevent self-intersection
+        const radius = Math.min(element.borderRadius, Math.min(Math.abs(w), Math.abs(h)) / 2);
 
         switch (element.type) {
             case 'rectangle':
+                // Normalize coordinates for drawing to handle negative width/height
+                let rx = x;
+                let ry = y;
+                let rw = w;
+                let rh = h;
+
+                if (rw < 0) { rx += rw; rw = Math.abs(rw); }
+                if (rh < 0) { ry += rh; rh = Math.abs(rh); }
+
                 if (radius > 0) {
                     // Rounded rectangle
                     ctx.beginPath();
-                    ctx.moveTo(x + radius, y);
-                    ctx.lineTo(x + w - radius, y);
-                    ctx.quadraticCurveTo(x + w, y, x + w, y + radius);
-                    ctx.lineTo(x + w, y + h - radius);
-                    ctx.quadraticCurveTo(x + w, y + h, x + w - radius, y + h);
-                    ctx.lineTo(x + radius, y + h);
-                    ctx.quadraticCurveTo(x, y + h, x, y + h - radius);
-                    ctx.lineTo(x, y + radius);
-                    ctx.quadraticCurveTo(x, y, x + radius, y);
+                    ctx.moveTo(rx + radius, ry);
+                    ctx.lineTo(rx + rw - radius, ry);
+                    ctx.quadraticCurveTo(rx + rw, ry, rx + rw, ry + radius);
+                    ctx.lineTo(rx + rw, ry + rh - radius);
+                    ctx.quadraticCurveTo(rx + rw, ry + rh, rx + rw - radius, ry + rh);
+                    ctx.lineTo(rx + radius, ry + rh);
+                    ctx.quadraticCurveTo(rx, ry + rh, rx, ry + rh - radius);
+                    ctx.lineTo(rx, ry + radius);
+                    ctx.quadraticCurveTo(rx, ry, rx + radius, ry);
                     ctx.closePath();
                     if (element.fill !== 'transparent') {
                         ctx.fill();
@@ -700,9 +1087,9 @@ export function Canva() {
                 } else {
                     // Sharp rectangle
                     if (element.fill !== 'transparent') {
-                        ctx.fillRect(x, y, w, h);
+                        ctx.fillRect(rx, ry, rw, rh);
                     }
-                    ctx.strokeRect(x, y, w, h);
+                    ctx.strokeRect(rx, ry, rw, rh);
                 }
                 if (element.text && element.id !== editingTextId) {
                     const fontSize = element.fontSize || 16;
@@ -911,6 +1298,72 @@ export function Canva() {
                         ctx.lineTo(element.points[i].x, element.points[i].y);
                     }
                     ctx.stroke();
+                }
+                break;
+
+            case 'image':
+                if (element.imageData) {
+                    let img = imageCacheRef.current.get(element.imageData);
+                    if (!img) {
+                        img = new Image();
+                        img.src = element.imageData;
+                        imageCacheRef.current.set(element.imageData, img);
+                        img.onload = () => render();
+                    }
+                    if (img.complete && img.naturalWidth > 0) {
+                        ctx.save();
+
+                        if (element.borderRadius > 0) {
+                            const radius = Math.min(element.borderRadius, w / 2, h / 2);
+                            ctx.beginPath();
+                            ctx.moveTo(x + radius, y);
+                            ctx.lineTo(x + w - radius, y);
+                            ctx.quadraticCurveTo(x + w, y, x + w, y + radius);
+                            ctx.lineTo(x + w, y + h - radius);
+                            ctx.quadraticCurveTo(x + w, y + h, x + w - radius, y + h);
+                            ctx.lineTo(x + radius, y + h);
+                            ctx.quadraticCurveTo(x, y + h, x, y + h - radius);
+                            ctx.lineTo(x, y + radius);
+                            ctx.quadraticCurveTo(x, y, x + radius, y);
+                            ctx.closePath();
+                            ctx.clip();
+                        }
+
+                        ctx.drawImage(img, x, y, w, h);
+                        ctx.restore();
+
+                        if (element.stroke && element.stroke !== 'transparent' && element.strokeWidth > 0) {
+                            ctx.strokeStyle = element.stroke;
+                            ctx.lineWidth = element.strokeWidth;
+                            if (element.strokeStyle === 'dashed') {
+                                ctx.setLineDash([12, 6]);
+                            } else if (element.strokeStyle === 'dotted') {
+                                ctx.setLineDash([3, 3]);
+                            } else {
+                                ctx.setLineDash([]);
+                            }
+
+                            if (element.borderRadius > 0) {
+                                const radius = Math.min(element.borderRadius, w / 2, h / 2);
+                                ctx.beginPath();
+                                ctx.moveTo(x + radius, y);
+                                ctx.lineTo(x + w - radius, y);
+                                ctx.quadraticCurveTo(x + w, y, x + w, y + radius);
+                                ctx.lineTo(x + w, y + h - radius);
+                                ctx.quadraticCurveTo(x + w, y + h, x + w - radius, y + h);
+                                ctx.lineTo(x + radius, y + h);
+                                ctx.quadraticCurveTo(x, y + h, x, y + h - radius);
+                                ctx.lineTo(x, y + radius);
+                                ctx.quadraticCurveTo(x, y, x + radius, y);
+                                ctx.closePath();
+                            } else {
+                                ctx.beginPath();
+                                ctx.rect(x, y, w, h);
+                            }
+                            ctx.stroke();
+                            ctx.setLineDash([]);
+                        }
+                    }
                 }
                 break;
         }
@@ -1689,16 +2142,17 @@ export function Canva() {
                             const fontSize = element.fontSize || 20;
                             ctx.font = `${fontSize}px ${element.fontFamily || 'Inter, sans-serif'}`;
                             const text = element.text || 'Texto';
-                            
+
+
                             const wrappedLines = getWrappedTextLines(ctx, text, newWidth);
                             const lineHeight = fontSize * 1.2;
                             const textPaddingTop = 2; // Same as rendering padding
                             // Calculate new height needed for wrapping - responsive to text
                             const calculatedHeight = Math.max(lineHeight, wrappedLines.length * lineHeight) + textPaddingTop;
-                            
+
                             // Height adapts to text wrapping (responsive)
                             updatedElement.height = calculatedHeight;
-                            
+
                             updatedElement.width = newWidth;
                             updatedElement.x = newX;
                         }
@@ -2018,8 +2472,8 @@ export function Canva() {
     // Keyboard shortcuts
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
-            // Disable shortcuts if editing text
-            if (editingTextId) return;
+            // Disable shortcuts if editing text or renaming canvas
+            if (editingTextId || editingCanvasName) return;
 
             if (!e.ctrlKey && !e.metaKey) {
                 switch (e.key.toLowerCase()) {
@@ -2033,6 +2487,7 @@ export function Canva() {
                     case 't': setSelectedTool('text'); break;
                     case 'p': setSelectedTool('pencil'); break;
                     case 'e': setSelectedTool('eraser'); break;
+                    case 'i': openImageFilePicker(); break;
                     case 'delete':
                     case 'backspace':
                         if (!editingTextId) deleteSelected();
@@ -2079,7 +2534,7 @@ export function Canva() {
 
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [elements, selectedElements, editingTextId, deleteSelected, undo, redo, copySelected, paste]);
+    }, [elements, selectedElements, editingTextId, editingCanvasName, deleteSelected, undo, redo, copySelected, paste, openImageFilePicker]);
 
     // Wheel for zoom and pan
     const handleWheel = useCallback((e: React.WheelEvent) => {
@@ -2115,6 +2570,85 @@ export function Canva() {
             });
         }
     }, [scale, offset]);
+
+    // Drag and drop handlers for images
+    const handleDragOver = useCallback((e: React.DragEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+    }, []);
+
+    const handleDrop = useCallback((e: React.DragEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+
+        const files = Array.from(e.dataTransfer.files);
+        const imageFile = files.find(f => f.type.startsWith('image/'));
+
+        if (imageFile) {
+            const reader = new FileReader();
+            reader.onload = (ev) => {
+                const imageData = ev.target?.result as string;
+                const img = new Image();
+                img.onload = () => {
+                    // Calculate dimensions maintaining aspect ratio
+                    const maxSize = 400;
+                    let width = img.width;
+                    let height = img.height;
+
+                    if (width > maxSize || height > maxSize) {
+                        if (width > height) {
+                            height = (height / width) * maxSize;
+                            width = maxSize;
+                        } else {
+                            width = (width / height) * maxSize;
+                            height = maxSize;
+                        }
+                    }
+
+                    // Get drop position in canvas coordinates
+                    const canvas = canvasRef.current;
+                    const rect = canvas?.getBoundingClientRect();
+                    const dropX = rect ? ((e.clientX - rect.left) - offset.x) / scale : 200;
+                    const dropY = rect ? ((e.clientY - rect.top) - offset.y) / scale : 200;
+
+                    const newElement: CanvasElement = {
+                        id: generateId(),
+                        type: 'image',
+                        x: dropX - width / 2,
+                        y: dropY - height / 2,
+                        width,
+                        height,
+                        rotation: 0,
+                        fill: 'transparent',
+                        stroke: 'transparent',
+                        strokeWidth: 0,
+                        strokeStyle: 'solid',
+                        roughness: 0,
+                        borderRadius: 0,
+                        opacity: 1,
+                        lineStyle: 'straight',
+                        arrowStart: 'none',
+                        arrowEnd: 'none',
+                        locked: false,
+                        selected: true,
+                        imageData,
+                    };
+
+                    // Cache the image
+                    imageCacheRef.current.set(imageData, img);
+
+                    const updatedElements = elements.map(el => ({ ...el, selected: false }));
+                    const finalElements = [...updatedElements, newElement];
+                    setElements(finalElements);
+                    setSelectedElements([newElement.id]);
+                    addToHistory(finalElements);
+                    setSelectedTool('select');
+                };
+                img.src = imageData;
+            };
+            reader.readAsDataURL(imageFile);
+        }
+    }, [elements, offset, scale, addToHistory]);
 
     // Disable browser zoom on Canva page
     useEffect(() => {
@@ -2214,6 +2748,13 @@ export function Canva() {
         link.click();
     };
 
+    const clearCanvas = () => {
+        setElements([]);
+        setSelectedElements([]);
+        addToHistory([]);
+        setShowClearConfirm(false);
+    };
+
     // Get cursor style
     const getCursor = () => {
         if (selectedTool === 'hand' || isPanning) return 'grab';
@@ -2229,9 +2770,134 @@ export function Canva() {
 
     return (
         <div className="canva-page">
+            {/* Canvas Panel Toggle Button - Always visible */}
+            {!canvasPanelOpen && (
+                <button
+                    className="canvas-panel-open-btn"
+                    onClick={() => setCanvasPanelOpen(true)}
+                    title="Abrir painel de canvas"
+                >
+                    <ChevronRight size={18} />
+                </button>
+            )}
+
+            {/* Canvas List Panel */}
+            {(canvasPanelOpen || isPanelClosing) && (
+                <div className={`canvas-list-panel ${isPanelClosing ? 'closing' : ''}`}>
+                    <div className="canvas-panel-header">
+                        <span className="canvas-panel-title">Meus Canvas</span>
+                        <button
+                            className="canvas-panel-toggle"
+                            onClick={handleClosePanel}
+                            title="Fechar painel"
+                        >
+                            <ChevronLeft size={16} />
+                        </button>
+                    </div>
+
+                    <button className="new-canvas-btn" onClick={createNewCanvas}>
+                        <Plus size={16} />
+                        <span>Novo Canvas</span>
+                    </button>
+
+                    <div className="canvas-list">
+                        {savedCanvases.map((canvas) => (
+                            <div
+                                key={canvas.id}
+                                className={`canvas-list-item ${canvas.id === currentCanvasId ? 'active' : ''}`}
+                                onClick={() => {
+                                    if (editingCanvasName !== canvas.id) {
+                                        switchCanvas(canvas.id);
+                                    }
+                                }}
+                            >
+                                <FileImage size={16} />
+                                {editingCanvasName === canvas.id ? (
+                                    <div className="canvas-rename-input-wrapper" onClick={(e) => e.stopPropagation()}>
+                                        <input
+                                            type="text"
+                                            className="canvas-rename-input"
+                                            value={tempCanvasName}
+                                            onChange={(e) => setTempCanvasName(e.target.value)}
+                                            onKeyDown={(e) => {
+                                                if (e.key === 'Enter') {
+                                                    renameCanvas(canvas.id, tempCanvasName);
+                                                } else if (e.key === 'Escape') {
+                                                    cancelRenamingCanvas();
+                                                }
+                                            }}
+                                            autoFocus
+                                        />
+                                        <button
+                                            className="canvas-rename-btn confirm"
+                                            onClick={() => renameCanvas(canvas.id, tempCanvasName)}
+                                            title="Confirmar"
+                                        >
+                                            <Check size={12} />
+                                        </button>
+                                        <button
+                                            className="canvas-rename-btn cancel"
+                                            onClick={cancelRenamingCanvas}
+                                            title="Cancelar"
+                                        >
+                                            <X size={12} />
+                                        </button>
+                                    </div>
+                                ) : (
+                                    <>
+                                        <span
+                                            className="canvas-item-name"
+                                            onDoubleClick={(e) => {
+                                                e.stopPropagation();
+                                                startRenamingCanvas(canvas.id, canvas.name);
+                                            }}
+                                            title="Clique duplo para renomear"
+                                        >
+                                            {canvas.name}
+                                        </span>
+                                        <span className="canvas-item-count">{canvas.elements.length}</span>
+                                        <button
+                                            className="canvas-edit-btn"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                startRenamingCanvas(canvas.id, canvas.name);
+                                            }}
+                                            title="Renomear canvas"
+                                        >
+                                            <Edit2 size={12} />
+                                        </button>
+                                        {savedCanvases.length > 1 && (
+                                            <button
+                                                className="canvas-delete-btn"
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    deleteCanvas(canvas.id);
+                                                }}
+                                                title="Excluir canvas"
+                                            >
+                                                <Trash2 size={14} />
+                                            </button>
+                                        )}
+                                    </>
+                                )}
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
+
             {/* Toolbar */}
             <div className="canva-toolbar">
-                <div className="toolbar-left" />
+                <div className="toolbar-left">
+                    <button
+                        className="toolbar-btn clear-canvas-btn"
+                        onClick={() => setShowClearConfirm(true)}
+                        title="Limpar canvas"
+                        disabled={elements.length === 0}
+                    >
+                        <Trash2 size={18} />
+                    </button>
+                </div>
 
                 <div className="toolbar-center">
                     <div className="toolbar-group">
@@ -2245,6 +2911,13 @@ export function Canva() {
                                 <tool.icon size={18} />
                             </button>
                         ))}
+                        <button
+                            className="toolbar-btn"
+                            onClick={openImageFilePicker}
+                            title="Inserir imagem (I)"
+                        >
+                            <FileImage size={18} />
+                        </button>
                     </div>
 
                     <div className="toolbar-separator" />
@@ -2309,6 +2982,8 @@ export function Canva() {
                 ref={containerRef}
                 className="canva-container"
                 onWheel={handleWheel}
+                onDragOver={handleDragOver}
+                onDrop={handleDrop}
             >
                 <canvas
                     ref={canvasRef}
@@ -2344,12 +3019,14 @@ export function Canva() {
                                             const text = updates.text || selectedElement.text || 'Texto';
 
                                             ctx.font = `${newFontSize}px ${newFontFamily}`;
-                                            
+
+
                                             // Keep the current width and recalculate height based on wrapping
                                             // This preserves the text box width and rewraps the text
                                             const currentWidth = selectedElement.width;
                                             const wrappedLines = getWrappedTextLines(ctx, text, currentWidth);
-                                            
+
+
                                             // Line height approximation
                                             const lineHeight = newFontSize * 1.2;
                                             const totalHeight = lineHeight * wrappedLines.length;
@@ -2402,19 +3079,13 @@ export function Canva() {
                                             <div className="panel-section">
                                                 <span className="panel-label">Fonte</span>
                                                 <div className="text-controls" style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '8px' }}>
-                                                    <select
-                                                        className="font-select"
+                                                    <CustomFontSelect
                                                         value={currentStyle.fontFamily || 'Inter, sans-serif'}
-                                                        onChange={(e) => handleStyleUpdate({ fontFamily: e.target.value })}
-                                                    >
-                                                        <option value="Inter, sans-serif">Inter</option>
-                                                        <option value="Arial, sans-serif">Arial</option>
-                                                        <option value="Times New Roman, serif">Times New Roman</option>
-                                                        <option value="Courier New, monospace">Courier New</option>
-                                                        <option value="Brush Script MT, cursive">Brush Script</option>
-                                                    </select>
-                                                </div>
-                                            </div>
+                                                        onChange={(value) => handleStyleUpdate({ fontFamily: value })}
+                                                    />
+
+                                                </div >
+                                            </div >
 
                                             <div className="panel-section">
                                                 <span className="panel-label" style={{ display: 'flex', justifyContent: 'space-between' }}>
@@ -2479,19 +3150,13 @@ export function Canva() {
                                             <div className="panel-section">
                                                 <span className="panel-label">Fonte</span>
                                                 <div className="text-controls" style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '8px' }}>
-                                                    <select
-                                                        className="font-select"
+                                                    <CustomFontSelect
                                                         value={currentStyle.fontFamily || 'Inter, sans-serif'}
-                                                        onChange={(e) => handleStyleUpdate({ fontFamily: e.target.value })}
-                                                    >
-                                                        <option value="Inter, sans-serif">Inter</option>
-                                                        <option value="Arial, sans-serif">Arial</option>
-                                                        <option value="Times New Roman, serif">Times New Roman</option>
-                                                        <option value="Courier New, monospace">Courier New</option>
-                                                        <option value="Brush Script MT, cursive">Brush Script</option>
-                                                    </select>
+                                                        onChange={(value) => handleStyleUpdate({ fontFamily: value })}
+                                                    />
+
                                                 </div>
-                                            </div>
+                                            </div >
 
                                             <div className="panel-section">
                                                 <span className="panel-label" style={{ display: 'flex', justifyContent: 'space-between' }}>
@@ -2542,6 +3207,11 @@ export function Canva() {
                                             <div className="panel-section">
                                                 <span className="panel-label">Contorno</span>
                                                 <div className="color-grid">
+                                                    <button
+                                                        className={`color-btn transparent ${currentStyle.stroke === 'transparent' ? 'active' : ''}`}
+                                                        onClick={() => handleStyleUpdate({ stroke: 'transparent' })}
+                                                        title="Sem contorno"
+                                                    />
                                                     {colors.map(color => (
                                                         <button
                                                             key={color}
@@ -2573,7 +3243,7 @@ export function Canva() {
                                             </div>
 
                                             <div className="panel-section">
-                                                <span className="panel-label">Espessura do traço</span>
+                                                <span className="panel-label">Espessura</span>
                                                 <div className="stroke-grid">
                                                     {strokeWidths.map(width => (
                                                         <button
@@ -2587,41 +3257,36 @@ export function Canva() {
                                                 </div>
                                             </div>
 
-                                            {/* Hide stroke style and roughness for pencil */}
                                             {currentStyle.type !== 'pencil' && (
-                                                <>
-                                                    <div className="panel-section">
-                                                        <span className="panel-label">Estilo do traço</span>
-                                                        <div className="style-grid">
-                                                            <button
-                                                                className={`style-btn ${currentStyle.strokeStyle === 'solid' ? 'active' : ''}`}
-                                                                onClick={() => handleStyleUpdate({ strokeStyle: 'solid' })}
-                                                                title="Sólido"
-                                                            >
-                                                                <div className="style-line solid" />
-                                                            </button>
-                                                            <button
-                                                                className={`style-btn ${currentStyle.strokeStyle === 'dashed' ? 'active' : ''}`}
-                                                                onClick={() => handleStyleUpdate({ strokeStyle: 'dashed' })}
-                                                                title="Tracejado"
-                                                            >
-                                                                <div className="style-line dashed" />
-                                                            </button>
-                                                            <button
-                                                                className={`style-btn ${currentStyle.strokeStyle === 'dotted' ? 'active' : ''}`}
-                                                                onClick={() => handleStyleUpdate({ strokeStyle: 'dotted' })}
-                                                                title="Pontilhado"
-                                                            >
-                                                                <div className="style-line dotted" />
-                                                            </button>
-                                                        </div>
+                                                <div className="panel-section">
+                                                    <span className="panel-label">Estilo do traço</span>
+                                                    <div className="style-grid">
+                                                        <button
+                                                            className={`style-btn ${currentStyle.strokeStyle === 'solid' ? 'active' : ''}`}
+                                                            onClick={() => handleStyleUpdate({ strokeStyle: 'solid' })}
+                                                            title="Sólido"
+                                                        >
+                                                            <div className="style-line solid" />
+                                                        </button>
+                                                        <button
+                                                            className={`style-btn ${currentStyle.strokeStyle === 'dashed' ? 'active' : ''}`}
+                                                            onClick={() => handleStyleUpdate({ strokeStyle: 'dashed' })}
+                                                            title="Tracejado"
+                                                        >
+                                                            <div className="style-line dashed" />
+                                                        </button>
+                                                        <button
+                                                            className={`style-btn ${currentStyle.strokeStyle === 'dotted' ? 'active' : ''}`}
+                                                            onClick={() => handleStyleUpdate({ strokeStyle: 'dotted' })}
+                                                            title="Pontilhado"
+                                                        >
+                                                            <div className="style-line dotted" />
+                                                        </button>
                                                     </div>
-
-                                                </>
+                                                </div>
                                             )}
 
-                                            {/* Only show Arestas for shapes with corners */}
-                                            {currentStyle.type !== 'arrow' && currentStyle.type !== 'line' && currentStyle.type !== 'pencil' && currentStyle.type !== 'ellipse' && (
+                                            {currentStyle.type !== 'arrow' && currentStyle.type !== 'line' && currentStyle.type !== 'pencil' && currentStyle.type !== 'ellipse' && currentStyle.type !== 'diamond' && (
                                                 <div className="panel-section">
                                                     <span className="panel-label">Arestas</span>
                                                     <div className="style-grid edges-grid">
@@ -2635,8 +3300,8 @@ export function Canva() {
                                                             </svg>
                                                         </button>
                                                         <button
-                                                            className={`style-btn ${currentStyle.borderRadius === 1 ? 'active' : ''}`}
-                                                            onClick={() => handleStyleUpdate({ borderRadius: 1 })}
+                                                            className={`style-btn ${currentStyle.borderRadius > 0 ? 'active' : ''}`}
+                                                            onClick={() => handleStyleUpdate({ borderRadius: 12 })}
                                                             title="Arredondadas"
                                                         >
                                                             <svg width="20" height="16" viewBox="0 0 20 16">
@@ -2647,7 +3312,6 @@ export function Canva() {
                                                 </div>
                                             )}
 
-                                            {/* Arrow/Line type options - only for arrows and lines */}
                                             {(currentStyle.type === 'arrow' || currentStyle.type === 'line') && (
                                                 <>
                                                     <div className="panel-section">
@@ -2714,7 +3378,8 @@ export function Canva() {
                                                 </>
                                             )}
                                         </>
-                                    )}
+                                    )
+                                    }
 
                                     <div className="panel-section">
                                         <span className="panel-label">Opacidade</span>
@@ -2732,46 +3397,48 @@ export function Canva() {
                                     </div>
 
 
-                                    {!isEditingDefault && (
-                                        <>
-                                            <div className="panel-section">
-                                                <span className="panel-label">Camadas</span>
-                                                <div className="layer-buttons">
-                                                    <button className="layer-btn" onClick={() => moveElementLayer('down')} title="Mover para trás">
-                                                        <ChevronDown size={16} />
-                                                    </button>
-                                                    <button className="layer-btn" onClick={() => moveElementLayer('up')} title="Mover para frente">
-                                                        <ChevronUp size={16} />
-                                                    </button>
-                                                    <button className="layer-btn" onClick={() => moveElementLayer('bottom')} title="Enviar para trás">
-                                                        <Layers size={16} />↓
-                                                    </button>
-                                                    <button className="layer-btn" onClick={() => moveElementLayer('top')} title="Trazer para frente">
-                                                        <Layers size={16} />↑
-                                                    </button>
+                                    {
+                                        !isEditingDefault && (
+                                            <>
+                                                <div className="panel-section">
+                                                    <span className="panel-label">Camadas</span>
+                                                    <div className="layer-buttons">
+                                                        <button className="layer-btn" onClick={() => moveElementLayer('down')} title="Mover para trás">
+                                                            <ChevronDown size={16} />
+                                                        </button>
+                                                        <button className="layer-btn" onClick={() => moveElementLayer('up')} title="Mover para frente">
+                                                            <ChevronUp size={16} />
+                                                        </button>
+                                                        <button className="layer-btn" onClick={() => moveElementLayer('bottom')} title="Enviar para trás">
+                                                            <Layers size={16} />↓
+                                                        </button>
+                                                        <button className="layer-btn" onClick={() => moveElementLayer('top')} title="Trazer para frente">
+                                                            <Layers size={16} />↑
+                                                        </button>
+                                                    </div>
                                                 </div>
-                                            </div>
 
-                                            <div className="panel-section">
-                                                <span className="panel-label">Ações</span>
-                                                <div className="action-buttons">
-                                                    <button className="action-btn" onClick={copySelected} title="Copiar">
-                                                        <Copy size={16} />
-                                                    </button>
-                                                    <button className="action-btn" onClick={deleteSelected} title="Excluir">
-                                                        <Trash2 size={16} />
-                                                    </button>
-                                                    <button
-                                                        className={`action-btn ${currentStyle.locked ? 'active' : ''}`}
-                                                        onClick={toggleLock}
-                                                        title="Bloquear/Desbloquear"
-                                                    >
-                                                        {currentStyle.locked ? <Unlock size={16} /> : <Lock size={16} />}
-                                                    </button>
+                                                <div className="panel-section">
+                                                    <span className="panel-label">Ações</span>
+                                                    <div className="action-buttons">
+                                                        <button className="action-btn" onClick={copySelected} title="Copiar">
+                                                            <Copy size={16} />
+                                                        </button>
+                                                        <button className="action-btn" onClick={deleteSelected} title="Excluir">
+                                                            <Trash2 size={16} />
+                                                        </button>
+                                                        <button
+                                                            className={`action-btn ${currentStyle.locked ? 'active' : ''}`}
+                                                            onClick={toggleLock}
+                                                            title="Bloquear/Desbloquear"
+                                                        >
+                                                            {currentStyle.locked ? <Unlock size={16} /> : <Lock size={16} />}
+                                                        </button>
+                                                    </div>
                                                 </div>
-                                            </div>
-                                        </>
-                                    )}
+                                            </>
+                                        )
+                                    }
                                 </>
                             );
                         })()}
@@ -2779,164 +3446,172 @@ export function Canva() {
                 )}
 
                 {/* Text editing overlay */}
-                {editingTextId && (() => {
-                    const textElement = elements.find(el => el.id === editingTextId);
-                    if (!textElement) return null;
+                {
+                    editingTextId && (() => {
+                        const textElement = elements.find(el => el.id === editingTextId);
+                        if (!textElement) return null;
 
-                    // For shapes, we need to center the text input
-                    const isShape = textElement.type === 'rectangle' || textElement.type === 'ellipse' || textElement.type === 'diamond';
-                    const shapeTextAlign = textElement.textAlign || 'center';
-                    
-                    // Calculate vertical centering for shapes
-                    let shapePaddingTop = 0;
-                    if (isShape) {
-                        const fontSize = (textElement.fontSize || 16);
-                        const lineHeight = fontSize * 1.2;
-                        const ctx = canvasRef.current?.getContext('2d');
-                        let numLines = 1;
-                        if (ctx && textElement.text) {
-                            ctx.font = `${fontSize}px ${textElement.fontFamily || 'Inter, sans-serif'}`;
-                            const maxTextWidth = textElement.width - 16;
-                            const words = textElement.text.split(/(\s+)/);
-                            let line = '';
-                            numLines = 1;
-                            for (const word of words) {
-                                const testLine = line + word;
-                                if (ctx.measureText(testLine).width > maxTextWidth && line !== '') {
-                                    numLines++;
-                                    line = word;
-                                } else {
-                                    line = testLine;
+                        // For shapes, we need to center the text input
+                        const isShape = textElement.type === 'rectangle' || textElement.type === 'ellipse' || textElement.type === 'diamond';
+                        const shapeTextAlign = textElement.textAlign || 'center';
+
+
+                        // Calculate vertical centering for shapes
+                        let shapePaddingTop = 0;
+                        if (isShape) {
+                            const fontSize = (textElement.fontSize || 16);
+                            const lineHeight = fontSize * 1.2;
+                            const ctx = canvasRef.current?.getContext('2d');
+                            let numLines = 1;
+                            if (ctx && textElement.text) {
+                                ctx.font = `${fontSize}px ${textElement.fontFamily || 'Inter, sans-serif'}`;
+                                const maxTextWidth = textElement.width - 16;
+                                const words = textElement.text.split(/(\s+)/);
+                                let line = '';
+                                numLines = 1;
+                                for (const word of words) {
+                                    const testLine = line + word;
+                                    if (ctx.measureText(testLine).width > maxTextWidth && line !== '') {
+                                        numLines++;
+                                        line = word;
+                                    } else {
+                                        line = testLine;
+                                    }
                                 }
                             }
+                            const totalTextHeight = numLines * lineHeight;
+                            shapePaddingTop = (textElement.height - totalTextHeight) / 2;
+                            if (shapePaddingTop < 0) shapePaddingTop = 0;
                         }
-                        const totalTextHeight = numLines * lineHeight;
-                        shapePaddingTop = (textElement.height - totalTextHeight) / 2;
-                        if (shapePaddingTop < 0) shapePaddingTop = 0;
-                    }
 
-                    return (
-                        <textarea
-                            ref={(el) => {
-                                if (el) {
-                                    // Robust auto-focus
-                                    el.focus();
-                                    // Only select all if it's the initial "Texto"
-                                    if (textElement.text === 'Texto') {
-                                        el.select();
-                                    }
-                                }
-                            }}
-                            style={{
-                                position: 'absolute',
-                                left: isShape
-                                    ? (textElement.x + 8) * scale + offset.x
-                                    : textElement.x * scale + offset.x,
-                                top: isShape
-                                    ? (textElement.y + shapePaddingTop) * scale + offset.y
-                                    : textElement.y * scale + offset.y,
-                                fontSize: (textElement.fontSize || (isShape ? 16 : 20)) * scale,
-                                color: textElement.stroke,
-                                fontFamily: textElement.fontFamily || 'Inter, sans-serif',
-                                width: isShape
-                                    ? (textElement.width - 16) * scale
-                                    : textElement.width * scale,
-                                height: isShape 
-                                    ? (textElement.height - shapePaddingTop * 2) * scale
-                                    : textElement.height * scale,
-                                border: 'none',
-                                outline: isShape ? 'none' : '1px dashed #22c55e',
-                                background: 'transparent',
-                                padding: '0',
-                                margin: '0',
-                                overflow: 'hidden',
-                                resize: 'none',
-                                textAlign: isShape ? shapeTextAlign : (textElement.textAlign || 'left'),
-                                direction: 'ltr',
-                                lineHeight: '1.2',
-                                whiteSpace: 'pre-wrap',
-                                wordBreak: 'break-word',
-                                boxSizing: 'border-box',
-                                zIndex: 50
-                            }}
-                            value={textElement.text || ''}
-                            onChange={(e) => {
-                                const newText = e.target.value;
-                                const ctx = canvasRef.current?.getContext('2d');
-                                
-                                if (isShape) {
-                                    // For shapes, only expand HEIGHT (up and down), keep width fixed
-                                    if (ctx) {
-                                        const fontSize = textElement.fontSize || 16;
-                                        const fontFamily = textElement.fontFamily || 'Inter, sans-serif';
-                                        ctx.font = `${fontSize}px ${fontFamily}`;
-                                        const lineHeight = fontSize * 1.2;
-                                        const textPadding = 16;
-                                        
-                                        // Width stays fixed, text wraps
-                                        const currentMaxWidth = textElement.width - textPadding;
-                                        const lines = getWrappedTextLines(ctx, newText, currentMaxWidth);
-                                        
-                                        // Calculate required height based on number of lines
-                                        const totalTextHeight = lines.length * lineHeight;
-                                        const minHeight = 60; // minimum shape height
-                                        const requiredHeight = Math.max(minHeight, totalTextHeight + textPadding + 10);
-                                        
-                                        // If height needs to change, grow equally up and down
-                                        const currentHeight = textElement.height;
-                                        let newHeight = currentHeight;
-                                        let newY = textElement.y;
-                                        
-                                        if (requiredHeight > currentHeight) {
-                                            const heightDiff = requiredHeight - currentHeight;
-                                            newHeight = requiredHeight;
-                                            // Grow upward by half the difference to keep center stable
-                                            newY = textElement.y - (heightDiff / 2);
+                        return (
+                            <textarea
+                                ref={(el) => {
+                                    if (el) {
+                                        // Robust auto-focus
+                                        el.focus();
+                                        // Only select all if it's the initial "Texto"
+                                        if (textElement.text === 'Texto') {
+                                            el.select();
                                         }
-                                        
-                                        setElements(elements.map(el =>
-                                            el.id === editingTextId
-                                                ? { ...el, text: newText, height: newHeight, y: newY }
-                                                : el
-                                        ));
-                                    } else {
-                                        setElements(elements.map(el =>
-                                            el.id === editingTextId
-                                                ? { ...el, text: newText }
-                                                : el
-                                        ));
                                     }
-                                } else {
-                                    if (ctx) {
-                                        const fontSize = textElement.fontSize || 20;
-                                        const fontFamily = textElement.fontFamily || 'Inter, sans-serif';
-                                        const newHeight = calculateTextHeight(ctx, newText, textElement.width, fontSize, fontFamily);
-                                        setElements(elements.map(el =>
-                                            el.id === editingTextId
-                                                ? { ...el, text: newText, height: newHeight }
-                                                : el
-                                        ));
+                                }}
+                                style={{
+                                    position: 'absolute',
+                                    left: isShape
+                                        ? (textElement.x + 8) * scale + offset.x
+                                        : textElement.x * scale + offset.x,
+                                    top: isShape
+                                        ? (textElement.y + shapePaddingTop) * scale + offset.y
+                                        : textElement.y * scale + offset.y,
+                                    fontSize: (textElement.fontSize || (isShape ? 16 : 20)) * scale,
+                                    color: textElement.stroke,
+                                    fontFamily: textElement.fontFamily || 'Inter, sans-serif',
+                                    width: isShape
+                                        ? (textElement.width - 16) * scale
+                                        : textElement.width * scale,
+                                    height: isShape
+
+                                        ? (textElement.height - shapePaddingTop * 2) * scale
+                                        : textElement.height * scale,
+                                    border: 'none',
+                                    outline: isShape ? 'none' : '1px dashed #22c55e',
+                                    background: 'transparent',
+                                    padding: '0',
+                                    margin: '0',
+                                    overflow: 'hidden',
+                                    resize: 'none',
+                                    textAlign: isShape ? shapeTextAlign : (textElement.textAlign || 'left'),
+                                    direction: 'ltr',
+                                    lineHeight: '1.2',
+                                    whiteSpace: 'pre-wrap',
+                                    wordBreak: 'break-word',
+                                    boxSizing: 'border-box',
+                                    zIndex: 50
+                                }}
+                                value={textElement.text || ''}
+                                onChange={(e) => {
+                                    const newText = e.target.value;
+                                    const ctx = canvasRef.current?.getContext('2d');
+
+
+                                    if (isShape) {
+                                        // For shapes, only expand HEIGHT (up and down), keep width fixed
+                                        if (ctx) {
+                                            const fontSize = textElement.fontSize || 16;
+                                            const fontFamily = textElement.fontFamily || 'Inter, sans-serif';
+                                            ctx.font = `${fontSize}px ${fontFamily}`;
+                                            const lineHeight = fontSize * 1.2;
+                                            const textPadding = 16;
+
+                                            // Width stays fixed, text wraps
+                                            const currentMaxWidth = textElement.width - textPadding;
+                                            const lines = getWrappedTextLines(ctx, newText, currentMaxWidth);
+
+                                            // Calculate required height based on number of lines
+                                            const totalTextHeight = lines.length * lineHeight;
+                                            const minHeight = 60; // minimum shape height
+                                            const requiredHeight = Math.max(minHeight, totalTextHeight + textPadding + 10);
+
+
+                                            // If height needs to change, grow equally up and down
+                                            const currentHeight = textElement.height;
+                                            let newHeight = currentHeight;
+                                            let newY = textElement.y;
+
+
+                                            if (requiredHeight > currentHeight) {
+                                                const heightDiff = requiredHeight - currentHeight;
+                                                newHeight = requiredHeight;
+                                                // Grow upward by half the difference to keep center stable
+                                                newY = textElement.y - (heightDiff / 2);
+                                            }
+
+
+                                            setElements(elements.map(el =>
+                                                el.id === editingTextId
+                                                    ? { ...el, text: newText, height: newHeight, y: newY }
+                                                    : el
+                                            ));
+                                        } else {
+                                            setElements(elements.map(el =>
+                                                el.id === editingTextId
+                                                    ? { ...el, text: newText }
+                                                    : el
+                                            ));
+                                        }
                                     } else {
-                                        setElements(elements.map(el =>
-                                            el.id === editingTextId
-                                                ? { ...el, text: newText }
-                                                : el
-                                        ));
+                                        if (ctx) {
+                                            const fontSize = textElement.fontSize || 20;
+                                            const fontFamily = textElement.fontFamily || 'Inter, sans-serif';
+                                            const newHeight = calculateTextHeight(ctx, newText, textElement.width, fontSize, fontFamily);
+                                            setElements(elements.map(el =>
+                                                el.id === editingTextId
+                                                    ? { ...el, text: newText, height: newHeight }
+                                                    : el
+                                            ));
+                                        } else {
+                                            setElements(elements.map(el =>
+                                                el.id === editingTextId
+                                                    ? { ...el, text: newText }
+                                                    : el
+                                            ));
+                                        }
                                     }
-                                }
-                            }}
-                            onBlur={() => {
-                                setEditingTextId(null);
-                                addToHistory(elements);
-                            }}
-                            onKeyDown={(e) => {
-                                if (e.key === 'Escape') {
+                                }}
+                                onBlur={() => {
                                     setEditingTextId(null);
-                                }
-                            }}
-                        />
-                    );
-                })()}
+                                    addToHistory(elements);
+                                }}
+                                onKeyDown={(e) => {
+                                    if (e.key === 'Escape') {
+                                        setEditingTextId(null);
+                                    }
+                                }}
+                            />
+                        );
+                    })()
+                }
 
                 {/* Help text */}
                 <div className="canva-help">
@@ -2945,8 +3620,40 @@ export function Canva() {
                     <kbd>Shift+Scroll</kbd>(horizontal) •
                     <kbd>Alt+Arrastar</kbd>(duplicar)
                 </div>
-            </div>
-        </div>
+
+                {/* Hidden file input for image upload */}
+                <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    onChange={handleFileInputChange}
+                    style={{ display: 'none' }}
+                />
+            </div >
+
+            {showClearConfirm && (
+                <div className="clear-confirm-overlay" onClick={() => setShowClearConfirm(false)}>
+                    <div className="clear-confirm-modal" onClick={(e) => e.stopPropagation()}>
+                        <h3>Limpar Canvas</h3>
+                        <p>Tem certeza que deseja apagar todos os elementos do canvas?</p>
+                        <div className="clear-confirm-buttons">
+                            <button
+                                className="clear-confirm-cancel"
+                                onClick={() => setShowClearConfirm(false)}
+                            >
+                                Cancelar
+                            </button>
+                            <button
+                                className="clear-confirm-delete"
+                                onClick={clearCanvas}
+                            >
+                                Apagar tudo
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+        </div >
     );
 }
 
