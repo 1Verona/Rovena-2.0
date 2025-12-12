@@ -1,84 +1,180 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { useLocation } from 'react-router-dom';
 import {
     Globe,
     RefreshCw,
     ChevronLeft,
     ChevronRight,
     Home as HomeIcon,
-    Loader2,
 } from 'lucide-react';
 import './Browser.css';
 
 const DEFAULT_URL = 'https://gamma.app';
 
-export function Browser() {
-    const [url, setUrl] = useState(DEFAULT_URL);
-    const [inputUrl, setInputUrl] = useState(DEFAULT_URL);
-    const [isLoading, setIsLoading] = useState(true);
-    const webviewRef = useRef<HTMLWebViewElement>(null);
-
-    useEffect(() => {
-        const webview = webviewRef.current as any;
-        if (!webview) return;
-
-        const handleLoadStart = () => setIsLoading(true);
-        const handleLoadStop = () => setIsLoading(false);
-        const handleDomReady = () => setIsLoading(false);
-        const handleNavigate = (e: any) => {
-            setInputUrl(e.url);
-            setUrl(e.url);
+declare global {
+    interface Window {
+        electron?: {
+            browser: {
+                attach: (bounds: { x: number; y: number; width: number; height: number }) => Promise<boolean>;
+                updateBounds: (bounds: { x: number; y: number; width: number; height: number }) => Promise<boolean>;
+                destroy: () => Promise<boolean>;
+                navigate: (url: string) => Promise<boolean>;
+                back: () => Promise<boolean>;
+                forward: () => Promise<boolean>;
+                refresh: () => Promise<boolean>;
+                home: () => Promise<boolean>;
+                getUrl: () => Promise<string>;
+            };
         };
+    }
+}
 
-        webview.addEventListener('did-start-loading', handleLoadStart);
-        webview.addEventListener('did-stop-loading', handleLoadStop);
-        webview.addEventListener('dom-ready', handleDomReady);
-        webview.addEventListener('did-navigate', handleNavigate);
-        webview.addEventListener('did-navigate-in-page', handleNavigate);
+export function Browser() {
+    const [inputUrl, setInputUrl] = useState(DEFAULT_URL);
+    const [currentUrl, setCurrentUrl] = useState('');
+    const [isElectron] = useState(!!window.electron);
+    const containerRef = useRef<HTMLDivElement | null>(null);
+    const location = useLocation();
+    const state = location.state as { url?: string } | null;
+    const initialUrlFromState = state?.url;
+    const hasAppliedInitialUrl = useRef(false);
 
-        return () => {
-            webview.removeEventListener('did-start-loading', handleLoadStart);
-            webview.removeEventListener('did-stop-loading', handleLoadStop);
-            webview.removeEventListener('dom-ready', handleDomReady);
-            webview.removeEventListener('did-navigate', handleNavigate);
-            webview.removeEventListener('did-navigate-in-page', handleNavigate);
+    const getBounds = useCallback(() => {
+        const container = containerRef.current;
+        if (!container) return null;
+        const rect = container.getBoundingClientRect();
+        return {
+            x: rect.x,
+            y: rect.y,
+            width: rect.width,
+            height: rect.height,
         };
     }, []);
 
-    const handleNavigate = () => {
+    const attachView = useCallback(async () => {
+        if (!window.electron?.browser) return;
+        const bounds = getBounds();
+        if (!bounds) return;
+        await window.electron.browser.attach(bounds);
+    }, [getBounds]);
+
+    const updateViewBounds = useCallback(async () => {
+        if (!window.electron?.browser) return;
+        const bounds = getBounds();
+        if (!bounds) return;
+        await window.electron.browser.updateBounds(bounds);
+    }, [getBounds]);
+
+    useEffect(() => {
+        if (!isElectron || !window.electron?.browser) return;
+        let cancelled = false;
+        attachView().then(async () => {
+            if (cancelled) return;
+            if (initialUrlFromState && !hasAppliedInitialUrl.current) {
+                await window.electron.browser.navigate(initialUrlFromState);
+                setCurrentUrl(initialUrlFromState);
+                setInputUrl(initialUrlFromState);
+                hasAppliedInitialUrl.current = true;
+                return;
+            }
+            const url = await window.electron?.browser.getUrl();
+            if (url) {
+                setCurrentUrl(url);
+                setInputUrl(url);
+            }
+        });
+
+        const container = containerRef.current;
+        if (!container) return;
+
+        const resizeObserver = new ResizeObserver(() => {
+            updateViewBounds();
+        });
+        resizeObserver.observe(container);
+
+        const handleWindowChange = () => {
+            updateViewBounds();
+        };
+
+        window.addEventListener('resize', handleWindowChange);
+        window.addEventListener('scroll', handleWindowChange, true);
+
+        return () => {
+            cancelled = true;
+            resizeObserver.disconnect();
+            window.removeEventListener('resize', handleWindowChange);
+            window.removeEventListener('scroll', handleWindowChange, true);
+            window.electron?.browser.destroy();
+        };
+    }, [attachView, updateViewBounds, isElectron, initialUrlFromState]);
+
+    const handleNavigate = async () => {
+        if (!window.electron?.browser) return;
         let newUrl = inputUrl.trim();
         if (!newUrl.startsWith('http://') && !newUrl.startsWith('https://')) {
             newUrl = 'https://' + newUrl;
         }
-        setUrl(newUrl);
-        setInputUrl(newUrl);
+        const success = await window.electron.browser.navigate(newUrl);
+        if (success) {
+            setCurrentUrl(newUrl);
+            setInputUrl(newUrl);
+        }
     };
 
-    const handleRefresh = () => {
-        const webview = webviewRef.current as any;
-        if (webview) webview.reload();
+    const handleRefresh = async () => {
+        if (window.electron?.browser) {
+            await window.electron.browser.refresh();
+        }
     };
 
-    const handleBack = () => {
-        const webview = webviewRef.current as any;
-        if (webview && webview.canGoBack()) webview.goBack();
+    const handleBack = async () => {
+        if (window.electron?.browser) {
+            await window.electron.browser.back();
+            const url = await window.electron.browser.getUrl();
+            if (url) {
+                setCurrentUrl(url);
+                setInputUrl(url);
+            }
+        }
     };
 
-    const handleForward = () => {
-        const webview = webviewRef.current as any;
-        if (webview && webview.canGoForward()) webview.goForward();
+    const handleForward = async () => {
+        if (window.electron?.browser) {
+            await window.electron.browser.forward();
+            const url = await window.electron.browser.getUrl();
+            if (url) {
+                setCurrentUrl(url);
+                setInputUrl(url);
+            }
+        }
     };
 
-    const handleHome = () => {
-        setUrl(DEFAULT_URL);
-        setInputUrl(DEFAULT_URL);
+    const handleHome = async () => {
+        if (window.electron?.browser) {
+            await window.electron.browser.home();
+            setCurrentUrl(DEFAULT_URL);
+            setInputUrl(DEFAULT_URL);
+        }
     };
+
+    if (!isElectron) {
+        return (
+            <div className="browser-page">
+                <div className="browser-header">
+                    <Globe size={24} />
+                    <h1>Mini Browser</h1>
+                    <span className="browser-subtitle">Disponível apenas no app Electron</span>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="browser-page">
             <div className="browser-header">
                 <Globe size={24} />
                 <h1>Mini Browser</h1>
-                <span className="browser-subtitle">Teste sites sem gastar tokens</span>
+                <span className="browser-subtitle">Embutido na janela principal via WebContentsView</span>
             </div>
 
             <div className="browser-main">
@@ -90,7 +186,7 @@ export function Browser() {
                         <ChevronRight size={18} />
                     </button>
                     <button className="browser-nav-btn" onClick={handleRefresh} title="Recarregar">
-                        <RefreshCw size={18} className={isLoading ? 'spinning' : ''} />
+                        <RefreshCw size={18} />
                     </button>
                     <button className="browser-nav-btn" onClick={handleHome} title="Home">
                         <HomeIcon size={18} />
@@ -103,18 +199,16 @@ export function Browser() {
                             onKeyDown={(e) => e.key === 'Enter' && handleNavigate()}
                             placeholder="Digite uma URL..."
                         />
-                        {isLoading && <Loader2 size={16} className="url-loader spinning" />}
                     </div>
                 </div>
 
-                <div className="browser-content">
-                    <webview
-                        ref={webviewRef as any}
-                        src={url}
-                        style={{ width: '100%', height: '100%' }}
-                        allowpopups="true"
-                    />
-                </div>
+                <div className="browser-container" ref={containerRef}></div>
+
+                {currentUrl && (
+                    <div className="browser-current-url">
+                        <span>URL atual: {currentUrl}</span>
+                    </div>
+                )}
             </div>
         </div>
     );
