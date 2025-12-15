@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import {
     Presentation,
     Sparkles,
@@ -16,25 +16,6 @@ import {
 } from 'lucide-react';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import './PresentationsBeta.css';
-import type { WebviewTag } from 'electron';
-
-declare global {
-    interface Window {
-        electron?: {
-            browser: {
-                attach: (bounds: { x: number; y: number; width: number; height: number }) => Promise<boolean>;
-                updateBounds: (bounds: { x: number; y: number; width: number; height: number }) => Promise<boolean>;
-                destroy: () => Promise<boolean>;
-                navigate: (url: string) => Promise<boolean>;
-                back: () => Promise<boolean>;
-                forward: () => Promise<boolean>;
-                refresh: () => Promise<boolean>;
-                home: () => Promise<boolean>;
-                getUrl: () => Promise<string>;
-            };
-        };
-    }
-}
 
 const GAMMA_URL = 'https://gamma.app';
 
@@ -90,39 +71,10 @@ export function PresentationsBeta() {
     const [url, setUrl] = useState(GAMMA_URL);
     const [inputUrl, setInputUrl] = useState(GAMMA_URL);
     const [isLoading, setIsLoading] = useState(true);
-    const [isElectron] = useState(!!window.electron);
-    const webviewRef = useRef<WebviewTag | null>(null);
-    const containerRef = useRef<HTMLDivElement | null>(null);
-    const hasAppliedInitialUrl = useRef(false);
-
-    const getBounds = useCallback(() => {
-        const container = containerRef.current;
-        if (!container) return null;
-        const rect = container.getBoundingClientRect();
-        return {
-            x: rect.x,
-            y: rect.y,
-            width: rect.width,
-            height: rect.height,
-        };
-    }, []);
-
-    const attachView = useCallback(async () => {
-        if (!window.electron?.browser) return;
-        const bounds = getBounds();
-        if (!bounds) return;
-        await window.electron.browser.attach(bounds);
-    }, [getBounds]);
-
-    const updateViewBounds = useCallback(async () => {
-        if (!window.electron?.browser) return;
-        const bounds = getBounds();
-        if (!bounds) return;
-        await window.electron.browser.updateBounds(bounds);
-    }, [getBounds]);
+    const webviewRef = useRef<HTMLWebViewElement>(null);
 
     useEffect(() => {
-        const webview = webviewRef.current;
+        const webview = webviewRef.current as any;
         if (!webview) return;
 
         const handleLoadStart = () => setIsLoading(true);
@@ -139,53 +91,6 @@ export function PresentationsBeta() {
             webview.removeEventListener('dom-ready', handleDomReady);
         };
     }, [viewMode]);
-
-    useEffect(() => {
-        if (!isElectron || viewMode !== 'editor' || !window.electron?.browser) return;
-        let cancelled = false;
-
-        attachView().then(async () => {
-            if (cancelled) return;
-            const targetUrl = url || GAMMA_URL;
-            if (targetUrl && !hasAppliedInitialUrl.current) {
-                await window.electron.browser.navigate(targetUrl);
-                setUrl(targetUrl);
-                setInputUrl(targetUrl);
-                hasAppliedInitialUrl.current = true;
-            } else {
-                const current = await window.electron.browser.getUrl();
-                if (current) {
-                    setUrl(current);
-                    setInputUrl(current);
-                }
-            }
-            setIsLoading(false);
-        });
-
-        const container = containerRef.current;
-        if (!container) return;
-
-        const resizeObserver = new ResizeObserver(() => {
-            updateViewBounds();
-        });
-        resizeObserver.observe(container);
-
-        const handleWindowChange = () => {
-            updateViewBounds();
-        };
-
-        window.addEventListener('resize', handleWindowChange);
-        window.addEventListener('scroll', handleWindowChange, true);
-
-        return () => {
-            cancelled = true;
-            resizeObserver.disconnect();
-            window.removeEventListener('resize', handleWindowChange);
-            window.removeEventListener('scroll', handleWindowChange, true);
-            window.electron?.browser.destroy();
-            hasAppliedInitialUrl.current = false;
-        };
-    }, [attachView, updateViewBounds, isElectron, viewMode, url]);
 
     const enhanceUserPrompt = async () => {
         if (!topic.trim()) return;
@@ -232,40 +137,23 @@ export function PresentationsBeta() {
             if (data.gammaUrl) {
                 setUrl(data.gammaUrl);
                 setInputUrl(data.gammaUrl);
-                hasAppliedInitialUrl.current = false;
-                setIsLoading(true);
-                setViewMode('editor');
+                setViewMode('result');
             }
 
-        } catch (err: unknown) {
+        } catch (err: any) {
             console.error('Error generating presentation:', err);
-            setError(err instanceof Error ? err.message : 'Erro ao gerar apresentação');
+            setError(err.message || 'Erro ao gerar apresentação');
         } finally {
             setIsGenerating(false);
             setGenerationProgress('');
         }
     };
 
-    const handleNavigate = async () => {
-        if (!inputUrl.trim()) return;
-        let targetUrl = inputUrl.trim();
-        if (!targetUrl.startsWith('http://') && !targetUrl.startsWith('https://')) {
-            targetUrl = 'https://' + targetUrl;
-        }
-
-        if (isElectron && window.electron?.browser) {
+    const handleNavigate = () => {
+        if (inputUrl.trim()) {
+            setUrl(inputUrl.trim());
             setIsLoading(true);
-            const success = await window.electron.browser.navigate(targetUrl);
-            if (success) {
-                setUrl(targetUrl);
-                setInputUrl(targetUrl);
-            }
-            setIsLoading(false);
-            return;
         }
-
-        setUrl(targetUrl);
-        setIsLoading(true);
     };
 
     const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -274,40 +162,22 @@ export function PresentationsBeta() {
         }
     };
 
-    const goBack = async () => {
-        if (isElectron && window.electron?.browser) {
-            await window.electron.browser.back();
-            const current = await window.electron.browser.getUrl();
-            if (current) {
-                setUrl(current);
-                setInputUrl(current);
-            }
-            return;
+    const goBack = () => {
+        if (webviewRef.current) {
+            (webviewRef.current as any).goBack?.();
         }
-        webviewRef.current?.goBack?.();
     };
 
-    const goForward = async () => {
-        if (isElectron && window.electron?.browser) {
-            await window.electron.browser.forward();
-            const current = await window.electron.browser.getUrl();
-            if (current) {
-                setUrl(current);
-                setInputUrl(current);
-            }
-            return;
+    const goForward = () => {
+        if (webviewRef.current) {
+            (webviewRef.current as any).goForward?.();
         }
-        webviewRef.current?.goForward?.();
     };
 
-    const reload = async () => {
-        if (isElectron && window.electron?.browser) {
-            setIsLoading(true);
-            await window.electron.browser.refresh();
-            setIsLoading(false);
-            return;
+    const reload = () => {
+        if (webviewRef.current) {
+            (webviewRef.current as any).reload?.();
         }
-        webviewRef.current?.reload?.();
         setIsLoading(true);
     };
 
@@ -315,9 +185,6 @@ export function PresentationsBeta() {
         setUrl(GAMMA_URL);
         setInputUrl(GAMMA_URL);
         setIsLoading(true);
-        if (isElectron && window.electron?.browser) {
-            window.electron.browser.home();
-        }
     };
 
     const openExternal = () => {
@@ -334,7 +201,6 @@ export function PresentationsBeta() {
         if (gammaResult?.gammaUrl) {
             setUrl(gammaResult.gammaUrl);
             setInputUrl(gammaResult.gammaUrl);
-            hasAppliedInitialUrl.current = false;
             setIsLoading(true);
             setViewMode('editor');
         }
@@ -579,21 +445,19 @@ export function PresentationsBeta() {
                     </button>
                 </div>
 
-                <div className="webview-container" ref={containerRef}>
+                <div className="webview-container">
                     {isLoading && (
                         <div className="loading-overlay">
                             <div className="loading-spinner"></div>
                             <span>Carregando Gamma.app...</span>
                         </div>
                     )}
-                    {!isElectron && (
-                        <webview
-                            ref={webviewRef}
-                            src={url}
-                            style={{ width: '100%', height: '100%' }}
-                            allowpopups="true"
-                        />
-                    )}
+                    <webview
+                        ref={webviewRef as any}
+                        src={url}
+                        style={{ width: '100%', height: '100%' }}
+                        allowpopups="true"
+                    />
                 </div>
             </div>
         </div>

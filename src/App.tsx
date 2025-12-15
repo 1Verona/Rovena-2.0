@@ -23,6 +23,7 @@ const Archives = lazy(() => import('./pages/Archives').then(module => ({ default
 const Charts = lazy(() => import('./pages/Charts').then(module => ({ default: module.Charts })));
 const Presentations = lazy(() => import('./pages/Presentations').then(module => ({ default: module.Presentations })));
 const PresentationsBeta = lazy(() => import('./pages/PresentationsBeta').then(module => ({ default: module.PresentationsBeta })));
+const Browser = lazy(() => import('./pages/Browser').then(module => ({ default: module.Browser })));
 const Settings = lazy(() => import('./pages/Settings').then(module => ({ default: module.Settings })));
 const Profile = lazy(() => import('./pages/Profile').then(module => ({ default: module.Profile })));
 import { Login } from './pages/Login';
@@ -175,6 +176,7 @@ function App() {
                                         <Route path="/charts" element={<Charts />} />
                                         <Route path="/presentations" element={<Presentations />} />
                                         <Route path="/presentations-beta" element={<PresentationsBeta />} />
+                                        <Route path="/browser" element={<Browser />} />
                                         <Route path="/profile" element={<Profile onProfileUpdate={handleProfileUpdate} />} />
                                         <Route path="/settings" element={
                                             <Settings
