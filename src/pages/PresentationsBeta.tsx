@@ -94,7 +94,7 @@ export function PresentationsBeta() {
 
     const enhanceUserPrompt = async () => {
         if (!topic.trim()) return;
-        
+
         setIsEnhancing(true);
         try {
             const functions = getFunctions();
@@ -119,9 +119,9 @@ export function PresentationsBeta() {
         try {
             const functions = getFunctions();
             const generateGamma = httpsCallable(functions, 'generateGammaPresentation');
-            
+
             setGenerationProgress('Gerando apresentação via API...');
-            
+
             const result = await generateGamma({
                 topic,
                 language,
@@ -133,7 +133,7 @@ export function PresentationsBeta() {
 
             const data = result.data as GammaResult;
             setGammaResult(data);
-            
+
             if (data.gammaUrl) {
                 setUrl(data.gammaUrl);
                 setInputUrl(data.gammaUrl);
@@ -242,7 +242,7 @@ export function PresentationsBeta() {
                                     placeholder="Descreva o tema da sua apresentação..."
                                     rows={3}
                                 />
-                                <button 
+                                <button
                                     className="enhance-btn"
                                     onClick={enhanceUserPrompt}
                                     disabled={!topic.trim() || isEnhancing}
@@ -397,7 +397,7 @@ export function PresentationsBeta() {
                             ref={webviewRef as any}
                             src={gammaResult.gammaUrl}
                             style={{ width: '100%', height: '100%' }}
-                            allowpopups="true"
+                            allowpopups
                         />
                     </div>
                 </div>
@@ -456,7 +456,7 @@ export function PresentationsBeta() {
                         ref={webviewRef as any}
                         src={url}
                         style={{ width: '100%', height: '100%' }}
-                        allowpopups="true"
+                        allowpopups
                     />
                 </div>
             </div>
