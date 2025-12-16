@@ -128,7 +128,6 @@ export function Notes() {
     const [searchTerm, setSearchTerm] = useState('');
     const [showNewNoteModal, setShowNewNoteModal] = useState(false);
     const [newNoteTitle, setNewNoteTitle] = useState(DEFAULT_NOTE_TITLE);
-    const [newNoteTags, setNewNoteTags] = useState<string[]>([]);
     const [tagInput, setTagInput] = useState('');
     const [showNewFolderModal, setShowNewFolderModal] = useState(false);
     const [newFolderName, setNewFolderName] = useState('');
@@ -153,7 +152,7 @@ export function Notes() {
             title,
             content: contentWithHeading,
             folderId: selectedFolder,
-            tags: newNoteTags,
+            tags: [],
             createdAt: Date.now(),
             updatedAt: Date.now(),
         };
@@ -162,7 +161,6 @@ export function Notes() {
         setSelectedNote(newNote);
         setShowNewNoteModal(false);
         setNewNoteTitle(DEFAULT_NOTE_TITLE);
-        setNewNoteTags([]);
         setTagInput('');
     };
 
@@ -367,41 +365,93 @@ export function Notes() {
                     <div className="notes-tree">{renderFolderTree(null)}</div>
                 </div>
 
-                <div className="notes-content">
-                    {selectedNote ? (
-                        <TiptapEditor
-                            key={selectedNote.id}
-                            content={selectedNote.content}
-                            onChange={(content) => {
-                                const newTitle = extractTitleFromContent(content, selectedNote.title || DEFAULT_NOTE_TITLE);
-                                const updatedNote = {
-                                    ...selectedNote,
-                                    title: newTitle,
-                                    content,
-                                    updatedAt: Date.now(),
-                                };
-                                NotesStorage.saveNote(updatedNote);
-                                setSelectedNote(updatedNote);
-                                loadData();
-                            }}
-                        />
-                    ) : (
-                        <div className="empty-state">
-                            <FileText size={64} />
-                            <h2>Nenhuma nota selecionada</h2>
-                            <p>Selecione uma nota ou crie uma nova para começar</p>
-                            <button
-                                className="btn btn-primary"
-                                onClick={() => {
-                                    setNewNoteTitle(DEFAULT_NOTE_TITLE);
-                                    setShowNewNoteModal(true);
-                                }}
-                            >
-                                <FilePlus size={16} /> Criar Nova Nota
-                            </button>
-                        </div>
-                    )}
-                </div>
+                  <div className="notes-content">
+                      {selectedNote ? (
+                          <div className="note-editor-wrapper">
+                              <div className="note-tags-section">
+                                  <div className="tags-list">
+                                      {selectedNote.tags.map((tag, index) => (
+                                          <span key={index} className="tag-item">
+                                              <Tag size={12} />
+                                              {tag}
+                                              <button
+                                                  className="tag-remove"
+                                                  onClick={() => {
+                                                      const updatedTags = selectedNote.tags.filter((_, i) => i !== index);
+                                                      const updatedNote = {
+                                                          ...selectedNote,
+                                                          tags: updatedTags,
+                                                          updatedAt: Date.now(),
+                                                      };
+                                                      NotesStorage.saveNote(updatedNote);
+                                                      setSelectedNote(updatedNote);
+                                                      loadData();
+                                                  }}
+                                              >
+                                                  <X size={12} />
+                                              </button>
+                                          </span>
+                                      ))}
+                                  </div>
+                                  <input
+                                      type="text"
+                                      value={tagInput}
+                                      onChange={(e) => setTagInput(e.target.value)}
+                                      placeholder="Digite uma tag e pressione Enter..."
+                                      className="tag-input"
+                                      onKeyDown={(e) => {
+                                          if (e.key === 'Enter' && tagInput.trim()) {
+                                              e.preventDefault();
+                                              if (!selectedNote.tags.includes(tagInput.trim())) {
+                                                  const updatedTags = [...selectedNote.tags, tagInput.trim()];
+                                                  const updatedNote = {
+                                                      ...selectedNote,
+                                                      tags: updatedTags,
+                                                      updatedAt: Date.now(),
+                                                  };
+                                                  NotesStorage.saveNote(updatedNote);
+                                                  setSelectedNote(updatedNote);
+                                                  loadData();
+                                              }
+                                              setTagInput('');
+                                          }
+                                      }}
+                                  />
+                              </div>
+                              <TiptapEditor
+                                  key={selectedNote.id}
+                                  content={selectedNote.content}
+                                  onChange={(content) => {
+                                      const newTitle = extractTitleFromContent(content, selectedNote.title || DEFAULT_NOTE_TITLE);
+                                      const updatedNote = {
+                                          ...selectedNote,
+                                          title: newTitle,
+                                          content,
+                                          updatedAt: Date.now(),
+                                      };
+                                      NotesStorage.saveNote(updatedNote);
+                                      setSelectedNote(updatedNote);
+                                      loadData();
+                                  }}
+                              />
+                          </div>
+                      ) : (
+                          <div className="empty-state">
+                              <FileText size={64} />
+                              <h2>Nenhuma nota selecionada</h2>
+                              <p>Selecione uma nota ou crie uma nova para começar</p>
+                              <button
+                                  className="btn btn-primary"
+                                  onClick={() => {
+                                      setNewNoteTitle(DEFAULT_NOTE_TITLE);
+                                      setShowNewNoteModal(true);
+                                  }}
+                              >
+                                  <FilePlus size={16} /> Criar Nova Nota
+                              </button>
+                          </div>
+                      )}
+                  </div>
             </div>
 
               <Modal
@@ -409,8 +459,6 @@ export function Notes() {
                 onClose={() => {
                     setShowNewNoteModal(false);
                     setNewNoteTitle(DEFAULT_NOTE_TITLE);
-                    setNewNoteTags([]);
-                    setTagInput('');
                 }}
                 title="Nova Nota"
                 footer={
@@ -420,8 +468,6 @@ export function Notes() {
                             onClick={() => {
                                 setShowNewNoteModal(false);
                                 setNewNoteTitle(DEFAULT_NOTE_TITLE);
-                                setNewNoteTags([]);
-                                setTagInput('');
                             }}
                         >
                             Cancelar
@@ -441,45 +487,11 @@ export function Notes() {
                         placeholder="Digite o nome da nota..."
                         autoFocus
                         onKeyDown={(e) => {
-                            if (e.key === 'Enter' && !tagInput) {
+                            if (e.key === 'Enter') {
                                 handleCreateNote();
                             }
                         }}
                     />
-                </div>
-                <div className="form-group">
-                    <label>Tags:</label>
-                    <div className="tags-input-container">
-                        <div className="tags-list">
-                            {newNoteTags.map((tag, index) => (
-                                <span key={index} className="tag-item">
-                                    <Tag size={12} />
-                                    {tag}
-                                    <button
-                                        className="tag-remove"
-                                        onClick={() => setNewNoteTags(newNoteTags.filter((_, i) => i !== index))}
-                                    >
-                                        <X size={12} />
-                                    </button>
-                                </span>
-                            ))}
-                        </div>
-                        <input
-                            type="text"
-                            value={tagInput}
-                            onChange={(e) => setTagInput(e.target.value)}
-                            placeholder="Digite uma tag e pressione Enter..."
-                            onKeyDown={(e) => {
-                                if (e.key === 'Enter' && tagInput.trim()) {
-                                    e.preventDefault();
-                                    if (!newNoteTags.includes(tagInput.trim())) {
-                                        setNewNoteTags([...newNoteTags, tagInput.trim()]);
-                                    }
-                                    setTagInput('');
-                                }
-                            }}
-                        />
-                    </div>
                 </div>
                 <p>Uma nova nota será criada {selectedFolder ? 'na pasta atual' : 'na raiz'}.</p>
             </Modal>
