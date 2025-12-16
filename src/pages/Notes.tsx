@@ -271,49 +271,33 @@ export function Notes() {
                   <div className="notes-content">
                       {selectedNote ? (
                           <div className="note-viewer">
-                              {isEditing ? (
-                                  <div className="note-editor">
-                                      <input
-                                          type="text"
-                                          className="title-input"
-                                          value={editTitle}
-                                          onChange={(e) => setEditTitle(e.target.value)}
-                                          placeholder="Título da nota"
-                                      />
-                                      <textarea
-                                          className="content-input"
-                                          value={editContent}
-                                          onChange={(e) => setEditContent(e.target.value)}
-                                          placeholder="Escreva sua nota em Markdown..."
-                                      />
-                                      <div className="editor-actions">
-                                          <button className="btn btn-secondary" onClick={() => setIsEditing(false)}>
-                                              Cancelar
-                                          </button>
-                                          <button className="btn btn-primary" onClick={handleSaveNote}>
-                                              Salvar
-                                          </button>
-                                      </div>
-                                  </div>
-                              ) : (
-                                  <div className="markdown-content">
-                                      <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                                          {selectedNote.content}
-                                      </ReactMarkdown>
-                                  </div>
-                              )}
+                              <textarea
+                                  className="obsidian-editor"
+                                  value={selectedNote.content}
+                                  onChange={(e) => {
+                                      const updatedNote = {
+                                          ...selectedNote,
+                                          content: e.target.value,
+                                          updatedAt: Date.now(),
+                                      };
+                                      NotesStorage.saveNote(updatedNote);
+                                      setSelectedNote(updatedNote);
+                                      loadData();
+                                  }}
+                                  placeholder="Comece a escrever..."
+                              />
                           </div>
-                    ) : (
-                        <div className="empty-state">
-                            <FileText size={64} />
-                            <h2>Nenhuma nota selecionada</h2>
-                            <p>Selecione uma nota ou crie uma nova para começar</p>
-                            <button className="btn btn-primary" onClick={() => setShowNewNoteModal(true)}>
-                                <FilePlus size={16} /> Criar Nova Nota
-                            </button>
-                        </div>
-                    )}
-                </div>
+                      ) : (
+                          <div className="empty-state">
+                              <FileText size={64} />
+                              <h2>Nenhuma nota selecionada</h2>
+                              <p>Selecione uma nota ou crie uma nova para começar</p>
+                              <button className="btn btn-primary" onClick={() => setShowNewNoteModal(true)}>
+                                  <FilePlus size={16} /> Criar Nova Nota
+                              </button>
+                          </div>
+                      )}
+                  </div>
             </div>
 
             <Modal
