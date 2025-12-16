@@ -105,9 +105,15 @@ export function GraphView({ notes, folders, onNodeClick }: GraphViewProps) {
                 nodeVal="val"
                 nodeColor="color"
                 nodeCanvasObject={(node: any, ctx: CanvasRenderingContext2D, globalScale: number) => {
+                    if (typeof node.x !== 'number' || typeof node.y !== 'number' || !Number.isFinite(node.x) || !Number.isFinite(node.y)) {
+                        return;
+                    }
+
                     const label = node.name;
                     const fontSize = 13 / globalScale;
-                    const nodeRadius = Math.sqrt(node.val) * 2.5;
+                    const nodeVal = typeof node.val === 'number' && node.val > 0 ? node.val : 1;
+                    const nodeRadius = Math.sqrt(nodeVal) * 2.5;
+                    if (!Number.isFinite(nodeRadius) || nodeRadius <= 0) return;
 
                     ctx.save();
 
