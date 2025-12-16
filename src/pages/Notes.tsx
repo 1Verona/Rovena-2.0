@@ -35,24 +35,21 @@ const TiptapEditor = ({ content, onChange }: { content: string; onChange: (conte
                     class: 'task-list',
                 },
             }),
-            TaskItem.configure({
+              TaskItem.configure({
                 nested: true,
                 HTMLAttributes: {
                     class: 'task-item',
                 },
-            }).extend({
-                addInputRules() {
-                    return [
-                        wrappingInputRule({
-                            find: /^-\[([ x])\]\s$/,
-                            type: this.type,
-                            getAttributes: (match) => ({
-                                checked: match[1] === 'x',
-                            }),
-                        }),
-                    ];
-                },
-            }),
+              }).extend({
+                  addInputRules() {
+                      return [
+                          wrappingInputRule({
+                              find: /^-\[\]\s$/,
+                              type: this.type,
+                          }),
+                      ];
+                  },
+              }),
             Markdown.configure({
                 transformPastedText: true,
             }),
@@ -65,7 +62,7 @@ const TiptapEditor = ({ content, onChange }: { content: string; onChange: (conte
         editorProps: {
             attributes: {
                 class: 'markdown-content focus:outline-none h-full',
-                'data-placeholder': 'Digite -[ ] e pressione espaço para criar checkbox',
+                  'data-placeholder': 'Digite -[] e pressione espaço para criar checkbox',
             },
         },
     });
