@@ -11,11 +11,19 @@ import {
     Search,
     X,
 } from 'lucide-react';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
+import MdEditor from 'react-markdown-editor-lite';
+import MarkdownIt from 'markdown-it';
+import 'react-markdown-editor-lite/lib/index.css';
 import { NotesStorage, type Note, type Folder } from '../services/notesStorage';
 import { Modal } from '../components/Modal/Modal';
 import './Notes.css';
+
+const mdParser = new MarkdownIt({
+    html: true,
+    linkify: true,
+    typographer: true,
+    breaks: true,
+});
 
 export function Notes() {
     const [notes, setNotes] = useState<Note[]>([]);
@@ -271,13 +279,14 @@ export function Notes() {
                   <div className="notes-content">
                       {selectedNote ? (
                           <div className="note-viewer">
-                              <textarea
-                                  className="obsidian-editor"
+                              <MdEditor
                                   value={selectedNote.content}
-                                  onChange={(e) => {
+                                  style={{ height: '100%' }}
+                                  renderHTML={text => mdParser.render(text)}
+                                  onChange={({ text }) => {
                                       const updatedNote = {
                                           ...selectedNote,
-                                          content: e.target.value,
+                                          content: text,
                                           updatedAt: Date.now(),
                                       };
                                       NotesStorage.saveNote(updatedNote);
@@ -285,6 +294,8 @@ export function Notes() {
                                       loadData();
                                   }}
                                   placeholder="Comece a escrever..."
+                                  view={{ menu: true, md: true, html: true }}
+                                  canView={{ menu: true, md: true, html: true, fullScreen: true, hideMenu: true }}
                               />
                           </div>
                       ) : (
