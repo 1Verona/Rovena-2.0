@@ -26,6 +26,7 @@ const PresentationsBeta = lazy(() => import('./pages/PresentationsBeta').then(mo
 const Browser = lazy(() => import('./pages/Browser').then(module => ({ default: module.Browser })));
 const Settings = lazy(() => import('./pages/Settings').then(module => ({ default: module.Settings })));
 const Profile = lazy(() => import('./pages/Profile').then(module => ({ default: module.Profile })));
+const Notes = lazy(() => import('./pages/Notes').then(module => ({ default: module.Notes })));
 import { Login } from './pages/Login';
 import './pages/Login.css';
 import './index.css';
@@ -177,6 +178,7 @@ function App() {
                                         <Route path="/presentations" element={<Presentations />} />
                                         <Route path="/presentations-beta" element={<PresentationsBeta />} />
                                         <Route path="/browser" element={<Browser />} />
+                                        <Route path="/notes" element={<Notes />} />
                                         <Route path="/profile" element={<Profile onProfileUpdate={handleProfileUpdate} />} />
                                         <Route path="/settings" element={
                                             <Settings
