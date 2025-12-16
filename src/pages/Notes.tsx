@@ -35,40 +35,47 @@ const TiptapEditor = ({ content, onChange }: { content: string; onChange: (conte
                     class: 'task-list',
                 },
             }),
-              TaskItem.configure({
+            TaskItem.configure({
                 nested: true,
                 HTMLAttributes: {
                     class: 'task-item',
                 },
-              }).extend({
-                  addInputRules() {
-                      return [
-                          wrappingInputRule({
-                              find: /^-\[\]\s$/,
-                              type: this.type,
-                          }),
-                      ];
-                  },
-              }),
+            }).extend({
+                addInputRules() {
+                    return [
+                        wrappingInputRule({
+                            find: /^-\[([ x])\]\s$/,
+                            type: this.type,
+                            getAttributes: (match) => ({
+                                checked: match[1] === 'x',
+                            }),
+                        }),
+                    ];
+                },
+            }),
             Markdown.configure({
                 transformPastedText: true,
             }),
         ],
         content,
         onUpdate: ({ editor }) => {
-            onChange(editor.storage.markdown.getMarkdown());
+            const markdown = (editor.storage as any).markdown?.getMarkdown?.() || editor.getText();
+            onChange(markdown);
         },
         editorProps: {
             attributes: {
                 class: 'markdown-content focus:outline-none h-full',
-                  'data-placeholder': 'Digite -[] e pressione espaço para criar checkbox',
+                'data-placeholder': 'Digite -[ ] e pressione espaço para criar checkbox',
             },
         },
     });
 
     useEffect(() => {
-        if (editor && content !== editor.storage.markdown.getMarkdown()) {
-            editor.commands.setContent(content);
+        if (editor) {
+            const currentMarkdown = (editor.storage as any).markdown?.getMarkdown?.() || editor.getText();
+            if (content !== currentMarkdown) {
+                editor.commands.setContent(content);
+            }
         }
     }, [content, editor]);
 
