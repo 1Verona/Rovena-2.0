@@ -58,11 +58,7 @@ const TiptapEditor = ({ content, onChange }: { content: string; onChange: (conte
         return null;
     }
 
-    return (
-        <div className="note-editor-surface">
-            <EditorContent editor={editor} className="tiptap-container" />
-        </div>
-    );
+    return <EditorContent editor={editor} className="tiptap-container" />;
 };
 
 const formatDateTime = (timestamp: number) =>
@@ -294,31 +290,20 @@ export function Notes() {
 
                 <div className="notes-content">
                     {selectedNote ? (
-                        <div className="note-viewer">
-                            <div className="note-header">
-                                <h1>{selectedNote.title}</h1>
-                                <div className="note-meta">
-                                    <span>{folders.find((f) => f.id === selectedNote.folderId)?.name || 'Raiz'}</span>
-                                    <span>{formatDateTime(selectedNote.updatedAt)}</span>
-                                </div>
-                            </div>
-                            <div className="note-editor">
-                                <TiptapEditor
-                                    key={selectedNote.id}
-                                    content={selectedNote.content}
-                                    onChange={(content) => {
-                                        const updatedNote = {
-                                            ...selectedNote,
-                                            content,
-                                            updatedAt: Date.now(),
-                                        };
-                                        NotesStorage.saveNote(updatedNote);
-                                        setSelectedNote(updatedNote);
-                                        loadData();
-                                    }}
-                                />
-                            </div>
-                        </div>
+                        <TiptapEditor
+                            key={selectedNote.id}
+                            content={selectedNote.content}
+                            onChange={(content) => {
+                                const updatedNote = {
+                                    ...selectedNote,
+                                    content,
+                                    updatedAt: Date.now(),
+                                };
+                                NotesStorage.saveNote(updatedNote);
+                                setSelectedNote(updatedNote);
+                                loadData();
+                            }}
+                        />
                     ) : (
                         <div className="empty-state">
                             <FileText size={64} />

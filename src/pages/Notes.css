@@ -215,15 +215,19 @@
 
 .tiptap-container {
     height: 100%;
+    width: 100%;
     overflow-y: auto;
     padding: var(--spacing-2xl);
     cursor: text;
+    background: var(--bg-primary);
 }
 
 .tiptap-container .ProseMirror {
     outline: none;
     min-height: 100%;
     color: var(--text-secondary);
+    font-size: 0.9375rem;
+    line-height: 1.7;
 }
 
 .tiptap-container .ProseMirror > * + * {
