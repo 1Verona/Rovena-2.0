@@ -11,6 +11,7 @@ import {
     Edit2,
     Search,
     X,
+    Tag,
 } from 'lucide-react';
 import { wrappingInputRule } from '@tiptap/core';
 import { useEditor, EditorContent } from '@tiptap/react';
@@ -21,6 +22,40 @@ import { Markdown } from 'tiptap-markdown';
 import { NotesStorage, type Note, type Folder } from '../services/notesStorage';
 import { Modal } from '../components/Modal/Modal';
 import './Notes.css';
+
+const DEFAULT_NOTE_TITLE = 'Nova Nota';
+
+const extractTitleFromContent = (content: string, fallback: string): string => {
+    const lines = content.split('\n');
+    for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed) continue;
+        const headingMatch = trimmed.match(/^(#+)\s*(.*)$/);
+        const title = headingMatch ? headingMatch[2].trim() : trimmed;
+        if (title) return title;
+    }
+    return fallback;
+};
+
+const syncHeadingWithTitle = (content: string, title: string): string => {
+    const lines = content.split('\n');
+    const firstContentIndex = lines.findIndex((line) => line.trim() !== '');
+
+    if (firstContentIndex === -1) {
+        return `# ${title}\n\n`;
+    }
+
+    const firstLine = lines[firstContentIndex];
+    const headingMatch = firstLine.match(/^(#+)\s*(.*)$/);
+
+    if (headingMatch) {
+        lines[firstContentIndex] = `${headingMatch[1]} ${title}`;
+    } else {
+        lines[firstContentIndex] = `# ${title}`;
+    }
+
+    return lines.join('\n');
+};
 
 const TiptapEditor = ({ content, onChange }: { content: string; onChange: (content: string) => void }) => {
     const editor = useEditor({
@@ -92,6 +127,9 @@ export function Notes() {
     const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
     const [searchTerm, setSearchTerm] = useState('');
     const [showNewNoteModal, setShowNewNoteModal] = useState(false);
+    const [newNoteTitle, setNewNoteTitle] = useState(DEFAULT_NOTE_TITLE);
+    const [newNoteTags, setNewNoteTags] = useState<string[]>([]);
+    const [tagInput, setTagInput] = useState('');
     const [showNewFolderModal, setShowNewFolderModal] = useState(false);
     const [newFolderName, setNewFolderName] = useState('');
     const [showRenameModal, setShowRenameModal] = useState(false);
@@ -107,11 +145,15 @@ export function Notes() {
     };
 
     const handleCreateNote = () => {
+        const title = newNoteTitle.trim() || DEFAULT_NOTE_TITLE;
+        const contentWithHeading = syncHeadingWithTitle('', title);
+
         const newNote: Note = {
             id: `note_${Date.now()}`,
-            title: 'Nova Nota',
-            content: '',
+            title,
+            content: contentWithHeading,
             folderId: selectedFolder,
+            tags: newNoteTags,
             createdAt: Date.now(),
             updatedAt: Date.now(),
         };
@@ -119,6 +161,9 @@ export function Notes() {
         loadData();
         setSelectedNote(newNote);
         setShowNewNoteModal(false);
+        setNewNoteTitle(DEFAULT_NOTE_TITLE);
+        setNewNoteTags([]);
+        setTagInput('');
     };
 
     const handleCreateFolder = () => {
@@ -164,7 +209,17 @@ export function Notes() {
         if (renameTarget.type === 'note') {
             const note = NotesStorage.getNoteById(renameTarget.id);
             if (note) {
-                NotesStorage.saveNote({ ...note, title: renameTarget.name, updatedAt: Date.now() });
+                const updatedContent = syncHeadingWithTitle(note.content, renameTarget.name.trim() || DEFAULT_NOTE_TITLE);
+                NotesStorage.saveNote({
+                    ...note,
+                    title: renameTarget.name,
+                    content: updatedContent,
+                    updatedAt: Date.now(),
+                });
+                if (selectedNote?.id === note.id) {
+                    const refreshedNote = { ...note, title: renameTarget.name, content: updatedContent, updatedAt: Date.now() };
+                    setSelectedNote(refreshedNote);
+                }
             }
         } else {
             const folder = NotesStorage.getFolderById(renameTarget.id);
@@ -278,7 +333,14 @@ export function Notes() {
                     <div className="sidebar-header">
                         <h2>Notas</h2>
                         <div className="sidebar-actions">
-                            <button className="icon-btn" onClick={() => setShowNewNoteModal(true)} title="Nova nota">
+                            <button
+                                className="icon-btn"
+                                onClick={() => {
+                                    setNewNoteTitle(DEFAULT_NOTE_TITLE);
+                                    setShowNewNoteModal(true);
+                                }}
+                                title="Nova nota"
+                            >
                                 <FilePlus size={18} />
                             </button>
                             <button className="icon-btn" onClick={() => setShowNewFolderModal(true)} title="Nova pasta">
@@ -311,8 +373,10 @@ export function Notes() {
                             key={selectedNote.id}
                             content={selectedNote.content}
                             onChange={(content) => {
+                                const newTitle = extractTitleFromContent(content, selectedNote.title || DEFAULT_NOTE_TITLE);
                                 const updatedNote = {
                                     ...selectedNote,
+                                    title: newTitle,
                                     content,
                                     updatedAt: Date.now(),
                                 };
@@ -326,7 +390,13 @@ export function Notes() {
                             <FileText size={64} />
                             <h2>Nenhuma nota selecionada</h2>
                             <p>Selecione uma nota ou crie uma nova para começar</p>
-                            <button className="btn btn-primary" onClick={() => setShowNewNoteModal(true)}>
+                            <button
+                                className="btn btn-primary"
+                                onClick={() => {
+                                    setNewNoteTitle(DEFAULT_NOTE_TITLE);
+                                    setShowNewNoteModal(true);
+                                }}
+                            >
                                 <FilePlus size={16} /> Criar Nova Nota
                             </button>
                         </div>
@@ -334,13 +404,26 @@ export function Notes() {
                 </div>
             </div>
 
-            <Modal
+              <Modal
                 isOpen={showNewNoteModal}
-                onClose={() => setShowNewNoteModal(false)}
+                onClose={() => {
+                    setShowNewNoteModal(false);
+                    setNewNoteTitle(DEFAULT_NOTE_TITLE);
+                    setNewNoteTags([]);
+                    setTagInput('');
+                }}
                 title="Nova Nota"
                 footer={
                     <>
-                        <button className="btn btn-secondary" onClick={() => setShowNewNoteModal(false)}>
+                        <button
+                            className="btn btn-secondary"
+                            onClick={() => {
+                                setShowNewNoteModal(false);
+                                setNewNoteTitle(DEFAULT_NOTE_TITLE);
+                                setNewNoteTags([]);
+                                setTagInput('');
+                            }}
+                        >
                             Cancelar
                         </button>
                         <button className="btn btn-primary" onClick={handleCreateNote}>
@@ -349,6 +432,55 @@ export function Notes() {
                     </>
                 }
             >
+                <div className="form-group">
+                    <label>Nome da nota:</label>
+                    <input
+                        type="text"
+                        value={newNoteTitle}
+                        onChange={(e) => setNewNoteTitle(e.target.value)}
+                        placeholder="Digite o nome da nota..."
+                        autoFocus
+                        onKeyDown={(e) => {
+                            if (e.key === 'Enter' && !tagInput) {
+                                handleCreateNote();
+                            }
+                        }}
+                    />
+                </div>
+                <div className="form-group">
+                    <label>Tags:</label>
+                    <div className="tags-input-container">
+                        <div className="tags-list">
+                            {newNoteTags.map((tag, index) => (
+                                <span key={index} className="tag-item">
+                                    <Tag size={12} />
+                                    {tag}
+                                    <button
+                                        className="tag-remove"
+                                        onClick={() => setNewNoteTags(newNoteTags.filter((_, i) => i !== index))}
+                                    >
+                                        <X size={12} />
+                                    </button>
+                                </span>
+                            ))}
+                        </div>
+                        <input
+                            type="text"
+                            value={tagInput}
+                            onChange={(e) => setTagInput(e.target.value)}
+                            placeholder="Digite uma tag e pressione Enter..."
+                            onKeyDown={(e) => {
+                                if (e.key === 'Enter' && tagInput.trim()) {
+                                    e.preventDefault();
+                                    if (!newNoteTags.includes(tagInput.trim())) {
+                                        setNewNoteTags([...newNoteTags, tagInput.trim()]);
+                                    }
+                                    setTagInput('');
+                                }
+                            }}
+                        />
+                    </div>
+                </div>
                 <p>Uma nova nota será criada {selectedFolder ? 'na pasta atual' : 'na raiz'}.</p>
             </Modal>
 

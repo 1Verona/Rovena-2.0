@@ -3,6 +3,7 @@ export interface Note {
     title: string;
     content: string;
     folderId: string | null;
+    tags: string[];
     createdAt: number;
     updatedAt: number;
 }
@@ -23,7 +24,10 @@ export const NotesStorage = {
     getNotes: (): Note[] => {
         const saved = localStorage.getItem(STORAGE_KEYS.NOTES);
         const notes: Note[] = saved ? JSON.parse(saved) : [];
-        return notes.sort((a, b) => b.updatedAt - a.updatedAt);
+        return notes.map(note => ({
+            ...note,
+            tags: note.tags || []
+        })).sort((a, b) => b.updatedAt - a.updatedAt);
     },
 
     getNoteById: (id: string): Note | undefined => {
