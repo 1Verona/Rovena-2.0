@@ -35,21 +35,24 @@ const TiptapEditor = ({ content, onChange }: { content: string; onChange: (conte
                     class: 'task-list',
                 },
             }),
-              TaskItem.configure({
+            TaskItem.configure({
                 nested: true,
                 HTMLAttributes: {
                     class: 'task-item',
                 },
-              }).extend({
-                  addInputRules() {
-                      return [
-                          wrappingInputRule({
-                              find: /^-\[\]\s$/,
-                              type: this.type,
-                          }),
-                      ];
-                  },
-              }),
+            }).extend({
+                addInputRules() {
+                    return [
+                        wrappingInputRule({
+                            find: /^-\[([ x])\]\s$/,
+                            type: this.type,
+                            getAttributes: (match) => ({
+                                checked: match[1] === 'x',
+                            }),
+                        }),
+                    ];
+                },
+            }),
             Markdown.configure({
                 transformPastedText: true,
             }),
@@ -62,7 +65,7 @@ const TiptapEditor = ({ content, onChange }: { content: string; onChange: (conte
         editorProps: {
             attributes: {
                 class: 'markdown-content focus:outline-none h-full',
-                  'data-placeholder': 'Digite -[] e pressione espaço para criar checkbox',
+                'data-placeholder': 'Digite -[ ] e pressione espaço para criar checkbox',
             },
         },
     });
@@ -84,8 +87,6 @@ const TiptapEditor = ({ content, onChange }: { content: string; onChange: (conte
 };
 
 export function Notes() {
-    const [notes, setNotes] = useState<Note[]>([]);
-    const [folders, setFolders] = useState<Folder[]>([]);
     const [selectedNote, setSelectedNote] = useState<Note | null>(null);
     const [selectedFolder, setSelectedFolder] = useState<string | null>(null);
     const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
@@ -95,14 +96,14 @@ export function Notes() {
     const [newFolderName, setNewFolderName] = useState('');
     const [showRenameModal, setShowRenameModal] = useState(false);
     const [renameTarget, setRenameTarget] = useState<{ type: 'note' | 'folder'; id: string; name: string } | null>(null);
+    const [, forceUpdate] = useState({});
 
     useEffect(() => {
         loadData();
     }, []);
 
     const loadData = () => {
-        setNotes(NotesStorage.getNotes());
-        setFolders(NotesStorage.getFolders());
+        forceUpdate({});
     };
 
     const handleCreateNote = () => {
