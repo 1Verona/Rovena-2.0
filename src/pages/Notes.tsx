@@ -1,3 +1,4 @@
+import type React from 'react';
 import { useState, useEffect } from 'react';
 import {
     FileText,
@@ -20,7 +21,7 @@ import { NotesStorage, type Note, type Folder } from '../services/notesStorage';
 import { Modal } from '../components/Modal/Modal';
 import './Notes.css';
 
-const TiptapEditor = ({ content, onChange }: { content: string, onChange: (content: string) => void }) => {
+const TiptapEditor = ({ content, onChange }: { content: string; onChange: (content: string) => void }) => {
     const editor = useEditor({
         extensions: [
             StarterKit.configure({
@@ -41,6 +42,7 @@ const TiptapEditor = ({ content, onChange }: { content: string, onChange: (conte
         editorProps: {
             attributes: {
                 class: 'markdown-content focus:outline-none h-full',
+                'data-placeholder': 'Escreva em Markdown... (## título, - [ ] tarefas, **negrito**)',
             },
         },
     });
@@ -56,8 +58,18 @@ const TiptapEditor = ({ content, onChange }: { content: string, onChange: (conte
         return null;
     }
 
-    return <EditorContent editor={editor} className="tiptap-container" />;
+    return (
+        <div className="note-editor-surface">
+            <EditorContent editor={editor} className="tiptap-container" />
+        </div>
+    );
 };
+
+const formatDateTime = (timestamp: number) =>
+    new Intl.DateTimeFormat('pt-BR', {
+        dateStyle: 'short',
+        timeStyle: 'short',
+    }).format(timestamp);
 
 export function Notes() {
     const [notes, setNotes] = useState<Note[]>([]);
@@ -66,14 +78,11 @@ export function Notes() {
     const [selectedFolder, setSelectedFolder] = useState<string | null>(null);
     const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
     const [searchTerm, setSearchTerm] = useState('');
-    const [isEditing, setIsEditing] = useState(false);
-    const [editContent, setEditContent] = useState('');
-    const [editTitle, setEditTitle] = useState('');
     const [showNewNoteModal, setShowNewNoteModal] = useState(false);
     const [showNewFolderModal, setShowNewFolderModal] = useState(false);
     const [newFolderName, setNewFolderName] = useState('');
     const [showRenameModal, setShowRenameModal] = useState(false);
-    const [renameTarget, setRenameTarget] = useState<{ type: 'note' | 'folder', id: string, name: string } | null>(null);
+    const [renameTarget, setRenameTarget] = useState<{ type: 'note' | 'folder'; id: string; name: string } | null>(null);
 
     useEffect(() => {
         loadData();
@@ -96,9 +105,6 @@ export function Notes() {
         NotesStorage.saveNote(newNote);
         loadData();
         setSelectedNote(newNote);
-        setIsEditing(true);
-        setEditTitle(newNote.title);
-        setEditContent(newNote.content);
         setShowNewNoteModal(false);
     };
 
@@ -112,23 +118,9 @@ export function Notes() {
         };
         NotesStorage.saveFolder(newFolder);
         loadData();
-        setExpandedFolders(prev => new Set(prev).add(selectedFolder || 'root'));
+        setExpandedFolders((prev) => new Set(prev).add(selectedFolder || 'root'));
         setNewFolderName('');
         setShowNewFolderModal(false);
-    };
-
-    const handleSaveNote = () => {
-        if (!selectedNote) return;
-        const updatedNote: Note = {
-            ...selectedNote,
-            title: editTitle,
-            content: editContent,
-            updatedAt: Date.now(),
-        };
-        NotesStorage.saveNote(updatedNote);
-        setSelectedNote(updatedNote);
-        setIsEditing(false);
-        loadData();
     };
 
     const handleDeleteNote = (id: string, e: React.MouseEvent) => {
@@ -155,7 +147,7 @@ export function Notes() {
 
     const handleRename = () => {
         if (!renameTarget) return;
-        
+
         if (renameTarget.type === 'note') {
             const note = NotesStorage.getNoteById(renameTarget.id);
             if (note) {
@@ -167,14 +159,14 @@ export function Notes() {
                 NotesStorage.saveFolder({ ...folder, name: renameTarget.name });
             }
         }
-        
+
         loadData();
         setShowRenameModal(false);
         setRenameTarget(null);
     };
 
     const toggleFolder = (folderId: string) => {
-        setExpandedFolders(prev => {
+        setExpandedFolders((prev) => {
             const next = new Set(prev);
             if (next.has(folderId)) {
                 next.delete(folderId);
@@ -191,7 +183,7 @@ export function Notes() {
 
         return (
             <>
-                {subfolders.map(folder => {
+                {subfolders.map((folder) => {
                     const isExpanded = expandedFolders.has(folder.id);
                     return (
                         <div key={folder.id} style={{ marginLeft: level * 16 }}>
@@ -229,39 +221,39 @@ export function Notes() {
                         </div>
                     );
                 })}
-                {folderNotes.filter(note => {
-                    if (!searchTerm) return true;
-                    const search = searchTerm.toLowerCase();
-                    return note.title.toLowerCase().includes(search) || 
-                           note.content.toLowerCase().includes(search);
-                }).map(note => (
-                    <div
-                        key={note.id}
-                        className={`note-item ${selectedNote?.id === note.id ? 'selected' : ''}`}
-                        style={{ marginLeft: level * 16 + 16 }}
-                        onClick={() => {
-                            setSelectedNote(note);
-                            setIsEditing(false);
-                        }}
-                    >
-                        <FileText size={16} />
-                        <span className="note-title">{note.title}</span>
-                        <div className="note-actions">
-                            <button
-                                onClick={(e) => {
-                                    e.stopPropagation();
-                                    setRenameTarget({ type: 'note', id: note.id, name: note.title });
-                                    setShowRenameModal(true);
-                                }}
-                            >
-                                <Edit2 size={12} />
-                            </button>
-                            <button onClick={(e) => handleDeleteNote(note.id, e)}>
-                                <Trash2 size={12} />
-                            </button>
+                {folderNotes
+                    .filter((note) => {
+                        if (!searchTerm) return true;
+                        const search = searchTerm.toLowerCase();
+                        return note.title.toLowerCase().includes(search) || note.content.toLowerCase().includes(search);
+                    })
+                    .map((note) => (
+                        <div
+                            key={note.id}
+                            className={`note-item ${selectedNote?.id === note.id ? 'selected' : ''}`}
+                            style={{ marginLeft: level * 16 + 16 }}
+                            onClick={() => {
+                                setSelectedNote(note);
+                            }}
+                        >
+                            <FileText size={16} />
+                            <span className="note-title">{note.title}</span>
+                            <div className="note-actions">
+                                <button
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        setRenameTarget({ type: 'note', id: note.id, name: note.title });
+                                        setShowRenameModal(true);
+                                    }}
+                                >
+                                    <Edit2 size={12} />
+                                </button>
+                                <button onClick={(e) => handleDeleteNote(note.id, e)}>
+                                    <Trash2 size={12} />
+                                </button>
+                            </div>
                         </div>
-                    </div>
-                ))}
+                    ))}
             </>
         );
     };
@@ -273,18 +265,10 @@ export function Notes() {
                     <div className="sidebar-header">
                         <h2>Notas</h2>
                         <div className="sidebar-actions">
-                            <button
-                                className="icon-btn"
-                                onClick={() => setShowNewNoteModal(true)}
-                                title="Nova nota"
-                            >
+                            <button className="icon-btn" onClick={() => setShowNewNoteModal(true)} title="Nova nota">
                                 <FilePlus size={18} />
                             </button>
-                            <button
-                                className="icon-btn"
-                                onClick={() => setShowNewFolderModal(true)}
-                                title="Nova pasta"
-                            >
+                            <button className="icon-btn" onClick={() => setShowNewFolderModal(true)} title="Nova pasta">
                                 <FolderPlus size={18} />
                             </button>
                         </div>
@@ -305,28 +289,35 @@ export function Notes() {
                         )}
                     </div>
 
-                    <div className="notes-tree">
-                        {renderFolderTree(null)}
-                    </div>
+                    <div className="notes-tree">{renderFolderTree(null)}</div>
                 </div>
 
                 <div className="notes-content">
                     {selectedNote ? (
                         <div className="note-viewer">
-                            <TiptapEditor
-                                key={selectedNote.id} // Force re-render on note change
-                                content={selectedNote.content}
-                                onChange={(content) => {
-                                    const updatedNote = {
-                                        ...selectedNote,
-                                        content,
-                                        updatedAt: Date.now(),
-                                    };
-                                    NotesStorage.saveNote(updatedNote);
-                                    setSelectedNote(updatedNote);
-                                    loadData();
-                                }}
-                            />
+                            <div className="note-header">
+                                <h1>{selectedNote.title}</h1>
+                                <div className="note-meta">
+                                    <span>{folders.find((f) => f.id === selectedNote.folderId)?.name || 'Raiz'}</span>
+                                    <span>{formatDateTime(selectedNote.updatedAt)}</span>
+                                </div>
+                            </div>
+                            <div className="note-editor">
+                                <TiptapEditor
+                                    key={selectedNote.id}
+                                    content={selectedNote.content}
+                                    onChange={(content) => {
+                                        const updatedNote = {
+                                            ...selectedNote,
+                                            content,
+                                            updatedAt: Date.now(),
+                                        };
+                                        NotesStorage.saveNote(updatedNote);
+                                        setSelectedNote(updatedNote);
+                                        loadData();
+                                    }}
+                                />
+                            </div>
                         </div>
                     ) : (
                         <div className="empty-state">
@@ -339,19 +330,6 @@ export function Notes() {
                         </div>
                     )}
                 </div>
-                              </div>
-                          </div>
-                      ) : (
-                          <div className="empty-state">
-                              <FileText size={64} />
-                              <h2>Nenhuma nota selecionada</h2>
-                              <p>Selecione uma nota ou crie uma nova para começar</p>
-                              <button className="btn btn-primary" onClick={() => setShowNewNoteModal(true)}>
-                                  <FilePlus size={16} /> Criar Nova Nota
-                              </button>
-                          </div>
-                      )}
-                  </div>
             </div>
 
             <Modal
@@ -390,11 +368,7 @@ export function Notes() {
                         >
                             Cancelar
                         </button>
-                        <button
-                            className="btn btn-primary"
-                            onClick={handleCreateFolder}
-                            disabled={!newFolderName.trim()}
-                        >
+                        <button className="btn btn-primary" onClick={handleCreateFolder} disabled={!newFolderName.trim()}>
                             Criar
                         </button>
                     </>
@@ -450,7 +424,9 @@ export function Notes() {
                     <input
                         type="text"
                         value={renameTarget?.name || ''}
-                        onChange={(e) => setRenameTarget(renameTarget ? { ...renameTarget, name: e.target.value } : null)}
+                        onChange={(e) =>
+                            setRenameTarget(renameTarget ? { ...renameTarget, name: e.target.value } : null)
+                        }
                         placeholder="Digite o novo nome..."
                         autoFocus
                         onKeyDown={(e) => {
@@ -466,3 +442,4 @@ export function Notes() {
 }
 
 export default Notes;
+

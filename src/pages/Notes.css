@@ -332,6 +332,27 @@
     flex-direction: column;
     padding: var(--spacing-xl) var(--spacing-2xl);
     overflow: hidden;
+    background: var(--bg-primary);
+}
+
+.note-editor-surface {
+    flex: 1;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+    box-shadow: var(--shadow-soft, none);
+}
+
+.note-editor-surface .tiptap-container {
+    height: 100%;
+    padding: var(--spacing-xl) var(--spacing-2xl);
+}
+
+.note-editor-surface .ProseMirror:empty::before {
+    content: attr(data-placeholder);
+    color: var(--text-muted);
+    pointer-events: none;
 }
 
 .title-input {
