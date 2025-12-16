@@ -11,10 +11,53 @@ import {
     Search,
     X,
 } from 'lucide-react';
-import ReactMarkdown from 'react-markdown';
+import { useEditor, EditorContent } from '@tiptap/react';
+import StarterKit from '@tiptap/starter-kit';
+import TaskList from '@tiptap/extension-task-list';
+import TaskItem from '@tiptap/extension-task-item';
+import { Markdown } from 'tiptap-markdown';
 import { NotesStorage, type Note, type Folder } from '../services/notesStorage';
 import { Modal } from '../components/Modal/Modal';
 import './Notes.css';
+
+const TiptapEditor = ({ content, onChange }: { content: string, onChange: (content: string) => void }) => {
+    const editor = useEditor({
+        extensions: [
+            StarterKit.configure({
+                heading: {
+                    levels: [1, 2, 3, 4, 5, 6],
+                },
+            }),
+            TaskList,
+            TaskItem.configure({
+                nested: true,
+            }),
+            Markdown,
+        ],
+        content,
+        onUpdate: ({ editor }) => {
+            onChange(editor.storage.markdown.getMarkdown());
+        },
+        editorProps: {
+            attributes: {
+                class: 'markdown-content focus:outline-none h-full',
+            },
+        },
+    });
+
+    // Update editor content when prop changes (e.g. switching notes)
+    useEffect(() => {
+        if (editor && content !== editor.storage.markdown.getMarkdown()) {
+            editor.commands.setContent(content);
+        }
+    }, [content, editor]);
+
+    if (!editor) {
+        return null;
+    }
+
+    return <EditorContent editor={editor} className="tiptap-container" />;
+};
 
 export function Notes() {
     const [notes, setNotes] = useState<Note[]>([]);
@@ -267,28 +310,35 @@ export function Notes() {
                     </div>
                 </div>
 
-                  <div className="notes-content">
-                      {selectedNote ? (
-                          <div className="note-viewer">
-                              <div className="markdown-editor-split">
-                                  <textarea
-                                      className="markdown-editor-input"
-                                      value={selectedNote.content}
-                                      onChange={(e) => {
-                                          const updatedNote = {
-                                              ...selectedNote,
-                                              content: e.target.value,
-                                              updatedAt: Date.now(),
-                                          };
-                                          NotesStorage.saveNote(updatedNote);
-                                          setSelectedNote(updatedNote);
-                                          loadData();
-                                      }}
-                                      placeholder="Comece a escrever em Markdown..."
-                                  />
-                                  <div className="markdown-preview">
-                                      <ReactMarkdown>{selectedNote.content || '*Preview aparecerá aqui...*'}</ReactMarkdown>
-                                  </div>
+                <div className="notes-content">
+                    {selectedNote ? (
+                        <div className="note-viewer">
+                            <TiptapEditor
+                                key={selectedNote.id} // Force re-render on note change
+                                content={selectedNote.content}
+                                onChange={(content) => {
+                                    const updatedNote = {
+                                        ...selectedNote,
+                                        content,
+                                        updatedAt: Date.now(),
+                                    };
+                                    NotesStorage.saveNote(updatedNote);
+                                    setSelectedNote(updatedNote);
+                                    loadData();
+                                }}
+                            />
+                        </div>
+                    ) : (
+                        <div className="empty-state">
+                            <FileText size={64} />
+                            <h2>Nenhuma nota selecionada</h2>
+                            <p>Selecione uma nota ou crie uma nova para começar</p>
+                            <button className="btn btn-primary" onClick={() => setShowNewNoteModal(true)}>
+                                <FilePlus size={16} /> Criar Nova Nota
+                            </button>
+                        </div>
+                    )}
+                </div>
                               </div>
                           </div>
                       ) : (

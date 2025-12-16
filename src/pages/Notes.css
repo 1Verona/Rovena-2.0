@@ -213,48 +213,96 @@
     margin: 0;
 }
 
-.note-viewer {
+.tiptap-container {
     height: 100%;
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-}
-
-.markdown-editor-split {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    height: 100%;
-    overflow: hidden;
-}
-
-.markdown-editor-input {
-    flex: 1;
-    width: 100%;
-    height: 100%;
-    background: var(--bg-secondary);
-    border: none;
-    border-right: 1px solid var(--border-color);
-    padding: var(--spacing-2xl);
-    color: var(--text-primary);
-    font-size: 0.9375rem;
-    font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
-    line-height: 1.7;
-    resize: none;
-    outline: none;
     overflow-y: auto;
+    padding: var(--spacing-2xl);
+    cursor: text;
 }
 
-.markdown-editor-input::placeholder {
+.tiptap-container .ProseMirror {
+    outline: none;
+    min-height: 100%;
+    color: var(--text-secondary);
+}
+
+.tiptap-container .ProseMirror > * + * {
+    margin-top: 0.75em;
+}
+
+.tiptap-container .ProseMirror ul,
+.tiptap-container .ProseMirror ol {
+    padding: 0 1rem;
+}
+
+.tiptap-container .ProseMirror ul[data-type="taskList"] {
+    list-style: none;
+    padding: 0;
+}
+
+.tiptap-container .ProseMirror ul[data-type="taskList"] li {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.5rem;
+}
+
+.tiptap-container .ProseMirror ul[data-type="taskList"] li > label {
+    margin-top: 0.2em;
+    user-select: none;
+}
+
+.tiptap-container .ProseMirror ul[data-type="taskList"] li > div {
+    flex: 1;
+}
+
+.tiptap-container .ProseMirror ul[data-type="taskList"] input[type="checkbox"] {
+    accent-color: var(--accent-green);
+    cursor: pointer;
+}
+
+.tiptap-container .ProseMirror h1,
+.tiptap-container .ProseMirror h2,
+.tiptap-container .ProseMirror h3,
+.tiptap-container .ProseMirror h4,
+.tiptap-container .ProseMirror h5,
+.tiptap-container .ProseMirror h6 {
+    line-height: 1.1;
+    color: var(--text-primary);
+}
+
+.tiptap-container .ProseMirror code {
+    background-color: var(--bg-secondary);
+    color: var(--accent-green);
+    padding: 0.2em 0.4em;
+    border-radius: 0.25rem;
+}
+
+.tiptap-container .ProseMirror pre {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    color: var(--text-primary);
+    font-family: 'JetBrains Mono', monospace;
+    padding: 0.75rem 1rem;
+    border-radius: 0.5rem;
+}
+
+.tiptap-container .ProseMirror pre code {
+    color: inherit;
+    padding: 0;
+    background: none;
+    font-size: 0.8rem;
+}
+
+.tiptap-container .ProseMirror blockquote {
+    border-left: 3px solid var(--accent-green);
+    padding-left: 1rem;
     color: var(--text-muted);
 }
 
-.markdown-preview {
-    flex: 1;
-    width: 100%;
-    height: 100%;
-    padding: var(--spacing-2xl);
-    overflow-y: auto;
-    background: var(--bg-primary);
+.tiptap-container .ProseMirror hr {
+    border: none;
+    border-top: 1px solid var(--border-color);
+    margin: 2rem 0;
 }
 
 .note-header {
