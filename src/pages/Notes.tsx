@@ -46,7 +46,7 @@ export function Notes() {
         const newNote: Note = {
             id: `note_${Date.now()}`,
             title: 'Nova Nota',
-            content: '# Nova Nota\n\nComece a escrever aqui...',
+            content: '',
             folderId: selectedFolder,
             createdAt: Date.now(),
             updatedAt: Date.now(),
