@@ -16,7 +16,7 @@ import {
     List,
     GripVertical,
 } from 'lucide-react';
-import { DragDropContext, Droppable, Draggable, type DropResult } from 'react-beautiful-dnd';
+import { DragDropContext, Droppable, Draggable, type DropResult } from '@hello-pangea/dnd';
 import { wrappingInputRule } from '@tiptap/core';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
@@ -314,7 +314,7 @@ export function Notes() {
         });
 
         return (
-            <Droppable droppableId={folderDroppableId} type="folder">
+            <Droppable droppableId={folderDroppableId} type="folder" isDropDisabled={false} isCombineEnabled={false} ignoreContainerClipping={false}>
                 {(provided) => (
                     <div ref={provided.innerRef} {...provided.droppableProps}>
                         {subfolders.map((folder, index) => {
@@ -372,7 +372,7 @@ export function Notes() {
                             );
                         })}
                         {provided.placeholder}
-                        <Droppable droppableId={noteDroppableId} type="note">
+                        <Droppable droppableId={noteDroppableId} type="note" isDropDisabled={false} isCombineEnabled={false} ignoreContainerClipping={false}>
                             {(provided) => (
                                 <div ref={provided.innerRef} {...provided.droppableProps}>
                                     {filteredNotes.map((note, index) => (
@@ -477,15 +477,14 @@ export function Notes() {
                         )}
                     </div>
 
-                    {viewMode === 'list' && (
-                        <DragDropContext onDragEnd={handleDragEnd}>
-                            <div className="notes-tree">{renderFolderTree(null)}</div>
-                        </DragDropContext>
-                    )}
+                    <DragDropContext onDragEnd={handleDragEnd}>
+                        <div className="notes-tree">{renderFolderTree(null)}</div>
+                    </DragDropContext>
                   </div>
 
-                    <div className="notes-content">
-                        {viewMode === 'graph' ? (
+                      <div className="notes-content">
+                          {viewMode === 'graph' ? (
+
                             <GraphView
                                 notes={NotesStorage.getNotes()}
                                 folders={NotesStorage.getFolders()}
