@@ -147,28 +147,32 @@ export function GraphView({ notes, folders, onNodeClick, onMoveNote, onMoveFolde
 
         const { k: zoom, x: translateX, y: translateY } = graph.zoom() || { k: 1, x: 0, y: 0 };
 
+        // Set canvas size
         canvas.width = dimensions.width;
         canvas.height = dimensions.height;
 
         ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-        // Transform coordinates
+        // Transform coordinates from graph space to screen space
         const dragX = dragNode.x * zoom + translateX + dimensions.width / 2;
         const dragY = dragNode.y * zoom + translateY + dimensions.height / 2;
         const targetX = targetNode.x * zoom + translateX + dimensions.width / 2;
         const targetY = targetNode.y * zoom + translateY + dimensions.height / 2;
 
-        // Draw green line
+        console.log('Drawing line from', dragX, dragY, 'to', targetX, targetY);
+
+        // Draw preview line with glow
         ctx.save();
-        ctx.beginPath();
-        ctx.moveTo(dragX, dragY);
-        ctx.lineTo(targetX, targetY);
         ctx.strokeStyle = '#22c55e';
         ctx.lineWidth = 4;
         ctx.setLineDash([10, 5]);
         ctx.lineCap = 'round';
         ctx.shadowColor = '#22c55e';
-        ctx.shadowBlur = 8;
+        ctx.shadowBlur = 10;
+        
+        ctx.beginPath();
+        ctx.moveTo(dragX, dragY);
+        ctx.lineTo(targetX, targetY);
         ctx.stroke();
         ctx.restore();
     };
