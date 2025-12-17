@@ -84,9 +84,9 @@ export function GraphView({ notes, folders, onNodeClick }: GraphViewProps) {
 
     useEffect(() => {
         if (graphRef.current) {
-            graphRef.current.d3Force('charge').strength(-300);
-            graphRef.current.d3Force('link').distance(100);
-            graphRef.current.d3Force('center').strength(0.1);
+            graphRef.current.d3Force('charge').strength(-400);
+            graphRef.current.d3Force('link').distance(120);
+            graphRef.current.d3Force('center').strength(0.05);
         }
     }, []);
 
@@ -110,70 +110,86 @@ export function GraphView({ notes, folders, onNodeClick }: GraphViewProps) {
                     }
 
                     const label = node.name;
-                    const fontSize = 13 / globalScale;
+                    const fontSize = 14 / globalScale;
                     const nodeVal = typeof node.val === 'number' && node.val > 0 ? node.val : 1;
-                    const nodeRadius = Math.sqrt(nodeVal) * 2.5;
+                    const nodeRadius = Math.sqrt(nodeVal) * 3;
                     if (!Number.isFinite(nodeRadius) || nodeRadius <= 0) return;
 
                     ctx.save();
 
-                    ctx.shadowColor = node.type === 'folder' ? 'rgba(139, 92, 246, 0.6)' : 'rgba(34, 197, 94, 0.6)';
-                    ctx.shadowBlur = 20 / globalScale;
+                    // Glow mais intenso no tema Rovena (escuro com verde/amarelo)
+                    ctx.shadowColor = node.type === 'folder' ? 'rgba(250, 204, 21, 0.7)' : 'rgba(34, 197, 94, 0.8)';
+                    ctx.shadowBlur = 25 / globalScale;
 
+                    // Gradiente com cores do tema Rovena
                     const gradient = ctx.createRadialGradient(node.x, node.y, 0, node.x, node.y, nodeRadius);
-                    gradient.addColorStop(0, node.color);
-                    gradient.addColorStop(1, node.type === 'folder' ? '#6d28d9' : '#16a34a');
+                    if (node.type === 'folder') {
+                        gradient.addColorStop(0, '#facc15');
+                        gradient.addColorStop(1, '#ca8a04');
+                    } else {
+                        gradient.addColorStop(0, '#22c55e');
+                        gradient.addColorStop(1, '#15803d');
+                    }
 
                     ctx.beginPath();
                     ctx.arc(node.x, node.y, nodeRadius, 0, 2 * Math.PI);
                     ctx.fillStyle = gradient;
                     ctx.fill();
 
-                    ctx.strokeStyle = node.type === 'folder' ? '#a78bfa' : '#4ade80';
+                    // Borda com cor do tema
+                    ctx.strokeStyle = node.type === 'folder' ? '#fde047' : '#4ade80';
                     ctx.lineWidth = 2.5 / globalScale;
                     ctx.stroke();
-
-                    if (node.type === 'folder') {
-                        ctx.strokeStyle = '#fbbf24';
-                        ctx.lineWidth = 1.5 / globalScale;
-                        ctx.setLineDash([3 / globalScale, 3 / globalScale]);
-                        ctx.stroke();
-                        ctx.setLineDash([]);
-                    }
 
                     ctx.shadowColor = 'transparent';
                     ctx.shadowBlur = 0;
 
+                    // Label mais visível
                     ctx.font = `600 ${fontSize}px 'Inter', -apple-system, sans-serif`;
                     ctx.textAlign = 'center';
                     ctx.textBaseline = 'middle';
 
-                    ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
-                    ctx.fillText(label, node.x + 1 / globalScale, node.y + nodeRadius + fontSize + 3 / globalScale);
+                    // Sombra no texto para contraste
+                    ctx.fillStyle = 'rgba(0, 0, 0, 0.9)';
+                    ctx.fillText(label, node.x + 1.5 / globalScale, node.y + nodeRadius + fontSize + 4 / globalScale);
 
-                    ctx.fillStyle = node.type === 'folder' ? '#e9d5ff' : '#d1fae5';
-                    ctx.fillText(label, node.x, node.y + nodeRadius + fontSize + 2 / globalScale);
+                    // Texto principal
+                    ctx.fillStyle = node.type === 'folder' ? '#fef3c7' : '#dcfce7';
+                    ctx.fillText(label, node.x, node.y + nodeRadius + fontSize + 2.5 / globalScale);
 
                     ctx.restore();
                 }}
                 nodeCanvasObjectMode={() => 'replace'}
-                linkColor={(link: any) => {
-                    return 'rgba(139, 92, 246, 0.3)';
-                }}
-                linkWidth={1.5}
-                linkDirectionalParticles={3}
-                linkDirectionalParticleWidth={3}
-                linkDirectionalParticleSpeed={0.008}
-                linkDirectionalParticleColor={() => '#8b5cf6'}
+                linkColor={() => 'rgba(34, 197, 94, 0.25)'}
+                linkWidth={2}
+                linkDirectionalParticles={2}
+                linkDirectionalParticleWidth={2.5}
+                linkDirectionalParticleSpeed={0.006}
+                linkDirectionalParticleColor={() => '#22c55e'}
                 onNodeClick={handleNodeClick}
                 backgroundColor="transparent"
-                warmupTicks={100}
-                cooldownTicks={0}
+                warmupTicks={150}
+                cooldownTicks={Infinity}
+                d3AlphaDecay={0.01}
+                d3VelocityDecay={0.2}
                 enableZoomInteraction={true}
                 enablePanInteraction={true}
                 enableNodeDrag={true}
+                nodePointerAreaPaint={(node: any, color: string, ctx: CanvasRenderingContext2D) => {
+                    const nodeRadius = Math.sqrt((node.val || 1)) * 3;
+                    ctx.fillStyle = color;
+                    ctx.beginPath();
+                    ctx.arc(node.x, node.y, nodeRadius + 5, 0, 2 * Math.PI);
+                    ctx.fill();
+                }}
                 onNodeHover={(node: any) => {
-                    document.body.style.cursor = node ? 'pointer' : 'default';
+                    document.body.style.cursor = node ? 'pointer' : 'grab';
+                }}
+                onNodeDragEnd={(node: any) => {
+                    if (node) {
+                        node.fx = node.x;
+                        node.fy = node.y;
+                    }
                 }}
             />
         </div>
