@@ -84,9 +84,9 @@ export function GraphView({ notes, folders, onNodeClick }: GraphViewProps) {
 
     useEffect(() => {
         if (graphRef.current) {
-            graphRef.current.d3Force('charge').strength(-400);
-            graphRef.current.d3Force('link').distance(120);
-            graphRef.current.d3Force('center').strength(0.05);
+            graphRef.current.d3Force('charge').strength(-500);
+            graphRef.current.d3Force('link').distance(150);
+            graphRef.current.d3Force('center').strength(0.1);
         }
     }, []);
 
@@ -105,57 +105,57 @@ export function GraphView({ notes, folders, onNodeClick }: GraphViewProps) {
                 nodeVal="val"
                 nodeColor="color"
                 nodeCanvasObject={(node: any, ctx: CanvasRenderingContext2D, globalScale: number) => {
-                    if (typeof node.x !== 'number' || typeof node.y !== 'number' || !Number.isFinite(node.x) || !Number.isFinite(node.y)) {
+                    const x = node.x;
+                    const y = node.y;
+                    
+                    if (typeof x !== 'number' || typeof y !== 'number' || !Number.isFinite(x) || !Number.isFinite(y)) {
                         return;
                     }
 
-                    const label = node.name;
-                    const fontSize = 14 / globalScale;
-                    const nodeVal = typeof node.val === 'number' && node.val > 0 ? node.val : 1;
-                    const nodeRadius = Math.sqrt(nodeVal) * 3;
+                    const label = node.name || '';
+                    const fontSize = 15 / globalScale;
+                    const nodeVal = typeof node.val === 'number' && node.val > 0 ? node.val : 8;
+                    const nodeRadius = Math.sqrt(nodeVal) * 4;
+                    
                     if (!Number.isFinite(nodeRadius) || nodeRadius <= 0) return;
 
                     ctx.save();
 
-                    // Glow mais intenso no tema Rovena (escuro com verde/amarelo)
-                    ctx.shadowColor = node.type === 'folder' ? 'rgba(250, 204, 21, 0.7)' : 'rgba(34, 197, 94, 0.8)';
-                    ctx.shadowBlur = 25 / globalScale;
+                    ctx.shadowColor = node.type === 'folder' ? 'rgba(250, 204, 21, 0.9)' : 'rgba(34, 197, 94, 0.9)';
+                    ctx.shadowBlur = 30 / globalScale;
 
-                    // Gradiente com cores do tema Rovena
-                    const gradient = ctx.createRadialGradient(node.x, node.y, 0, node.x, node.y, nodeRadius);
+                    const gradient = ctx.createRadialGradient(x, y, 0, x, y, nodeRadius);
                     if (node.type === 'folder') {
-                        gradient.addColorStop(0, '#facc15');
-                        gradient.addColorStop(1, '#ca8a04');
+                        gradient.addColorStop(0, '#fbbf24');
+                        gradient.addColorStop(1, '#d97706');
                     } else {
-                        gradient.addColorStop(0, '#22c55e');
-                        gradient.addColorStop(1, '#15803d');
+                        gradient.addColorStop(0, '#34d399');
+                        gradient.addColorStop(1, '#059669');
                     }
 
                     ctx.beginPath();
-                    ctx.arc(node.x, node.y, nodeRadius, 0, 2 * Math.PI);
+                    ctx.arc(x, y, nodeRadius, 0, 2 * Math.PI);
                     ctx.fillStyle = gradient;
                     ctx.fill();
 
-                    // Borda com cor do tema
-                    ctx.strokeStyle = node.type === 'folder' ? '#fde047' : '#4ade80';
-                    ctx.lineWidth = 2.5 / globalScale;
+                    ctx.strokeStyle = node.type === 'folder' ? '#fef3c7' : '#d1fae5';
+                    ctx.lineWidth = 3 / globalScale;
                     ctx.stroke();
 
                     ctx.shadowColor = 'transparent';
                     ctx.shadowBlur = 0;
 
-                    // Label mais visível
-                    ctx.font = `600 ${fontSize}px 'Inter', -apple-system, sans-serif`;
+                    ctx.font = `700 ${fontSize}px 'Inter', -apple-system, sans-serif`;
                     ctx.textAlign = 'center';
                     ctx.textBaseline = 'middle';
 
-                    // Sombra no texto para contraste
-                    ctx.fillStyle = 'rgba(0, 0, 0, 0.9)';
-                    ctx.fillText(label, node.x + 1.5 / globalScale, node.y + nodeRadius + fontSize + 4 / globalScale);
+                    const textY = y + nodeRadius + fontSize + 6 / globalScale;
+                    
+                    ctx.fillStyle = 'rgba(0, 0, 0, 0.95)';
+                    ctx.fillText(label, x + 1.5 / globalScale, textY + 1.5 / globalScale);
 
-                    // Texto principal
-                    ctx.fillStyle = node.type === 'folder' ? '#fef3c7' : '#dcfce7';
-                    ctx.fillText(label, node.x, node.y + nodeRadius + fontSize + 2.5 / globalScale);
+                    ctx.fillStyle = '#ffffff';
+                    ctx.fillText(label, x, textY);
 
                     ctx.restore();
                 }}
@@ -168,8 +168,8 @@ export function GraphView({ notes, folders, onNodeClick }: GraphViewProps) {
                 linkDirectionalParticleColor={() => '#22c55e'}
                 onNodeClick={handleNodeClick}
                 backgroundColor="transparent"
-                warmupTicks={150}
-                cooldownTicks={Infinity}
+                warmupTicks={100}
+                cooldownTicks={0}
                 d3AlphaDecay={0.01}
                 d3VelocityDecay={0.2}
                 enableZoomInteraction={true}
