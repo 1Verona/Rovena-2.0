@@ -35,9 +35,8 @@ export function GraphView({ notes, folders, onNodeClick, onMoveNote, onMoveFolde
     const containerRef = useRef<HTMLDivElement>(null);
     const dragFlagRef = useRef(false);
     const draggedNodeRef = useRef<any>(null);
-    const overlayCanvasRef = useRef<HTMLCanvasElement>(null);
     const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
-    const [hoverTarget, setHoverTarget] = useState<{node: any, x: number, y: number} | null>(null);
+    const [dropTarget, setDropTarget] = useState<any>(null);
 
     useEffect(() => {
         const container = containerRef.current;
@@ -72,7 +71,7 @@ export function GraphView({ notes, folders, onNodeClick, onMoveNote, onMoveFolde
                 id: folder.id,
                 name: folder.name,
                 type: 'folder',
-                val: 50, // Increased val for larger logic radius (prevents culling)
+                val: 50,
                 color: '#8b5cf6',
             });
 
@@ -89,7 +88,7 @@ export function GraphView({ notes, folders, onNodeClick, onMoveNote, onMoveFolde
                 id: note.id,
                 name: note.title,
                 type: 'note',
-                val: 30, // Increased val for larger logic radius
+                val: 30,
                 color: '#22c55e',
             });
 
@@ -135,56 +134,6 @@ export function GraphView({ notes, folders, onNodeClick, onMoveNote, onMoveFolde
         }
     };
 
-    const drawPreviewLine = (dragNode: any, targetNode: any) => {
-        const canvas = overlayCanvasRef.current;
-        if (!canvas) return;
-        
-        const ctx = canvas.getContext('2d');
-        if (!ctx) return;
-
-        const graph = graphRef.current;
-        if (!graph) return;
-
-        const { k: zoom, x: translateX, y: translateY } = graph.zoom() || { k: 1, x: 0, y: 0 };
-
-        // Set canvas size
-        canvas.width = dimensions.width;
-        canvas.height = dimensions.height;
-
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-        // Transform coordinates from graph space to screen space
-        const dragX = dragNode.x * zoom + translateX + dimensions.width / 2;
-        const dragY = dragNode.y * zoom + translateY + dimensions.height / 2;
-        const targetX = targetNode.x * zoom + translateX + dimensions.width / 2;
-        const targetY = targetNode.y * zoom + translateY + dimensions.height / 2;
-
-        console.log('Drawing line from', dragX, dragY, 'to', targetX, targetY);
-
-        // Draw preview line with glow
-        ctx.save();
-        ctx.strokeStyle = '#22c55e';
-        ctx.lineWidth = 4;
-        ctx.setLineDash([10, 5]);
-        ctx.lineCap = 'round';
-        ctx.shadowColor = '#22c55e';
-        ctx.shadowBlur = 10;
-        
-        ctx.beginPath();
-        ctx.moveTo(dragX, dragY);
-        ctx.lineTo(targetX, targetY);
-        ctx.stroke();
-        ctx.restore();
-    };
-
-    const clearPreviewLine = () => {
-        const canvas = overlayCanvasRef.current;
-        if (!canvas) return;
-        const ctx = canvas.getContext('2d');
-        if (!ctx) return;
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-    };
-
     return (
         <div className="graph-view-container" ref={containerRef}>
             <ForceGraph2D
@@ -205,11 +154,20 @@ export function GraphView({ notes, folders, onNodeClick, onMoveNote, onMoveFolde
 
                     const label = node.name || '';
                     const fontSize = 14 / globalScale;
-                    
-                    // Use fixed visual sizes regardless of the large physics 'val' used for culling protection
                     const visualRadius = node.type === 'folder' ? 12 : 7;
 
                     ctx.save();
+
+                    // Highlight drop target
+                    if (dropTarget && dropTarget.id === node.id) {
+                        ctx.shadowColor = '#22c55e';
+                        ctx.shadowBlur = 30 / globalScale;
+                        ctx.strokeStyle = '#22c55e';
+                        ctx.lineWidth = 4 / globalScale;
+                        ctx.beginPath();
+                        ctx.arc(x, y, visualRadius + 8, 0, 2 * Math.PI);
+                        ctx.stroke();
+                    }
 
                     // Glow effect
                     ctx.shadowColor = node.type === 'folder' ? 'rgba(250, 204, 21, 0.6)' : 'rgba(34, 197, 94, 0.6)';
@@ -253,34 +211,46 @@ export function GraphView({ notes, folders, onNodeClick, onMoveNote, onMoveFolde
 
                     ctx.restore();
                 }}
-                  nodeCanvasObjectMode={() => 'replace'}
-                  linkColor={() => 'rgba(34, 197, 94, 0.2)'}
-                  linkWidth={1.5}
-                  linkDirectionalParticles={2}
-                  linkDirectionalParticleWidth={2}
-                  linkDirectionalParticleSpeed={0.005}
-                  linkDirectionalParticleColor={() => '#4ade80'}
-                  linkCanvasObject={(link: any, ctx: CanvasRenderingContext2D, globalScale: number) => {
-                      // Draw default links (existing connections)
-                      const start = link.source;
-                      const end = link.target;
-                      
-                      if (typeof start.x !== 'number' || typeof start.y !== 'number' || 
-                          typeof end.x !== 'number' || typeof end.y !== 'number') {
-                          return;
-                      }
+                nodeCanvasObjectMode={() => 'replace'}
+                linkColor={() => 'rgba(34, 197, 94, 0.2)'}
+                linkWidth={1.5}
+                linkDirectionalParticles={2}
+                linkDirectionalParticleWidth={2}
+                linkDirectionalParticleSpeed={0.005}
+                linkDirectionalParticleColor={() => '#4ade80'}
+                linkCanvasObject={(link: any, ctx: CanvasRenderingContext2D, globalScale: number) => {
+                    const start = link.source;
+                    const end = link.target;
+                    
+                    if (typeof start.x !== 'number' || typeof start.y !== 'number' || 
+                        typeof end.x !== 'number' || typeof end.y !== 'number') {
+                        return;
+                    }
 
-                      ctx.save();
-                      ctx.beginPath();
-                      ctx.moveTo(start.x, start.y);
-                      ctx.lineTo(end.x, end.y);
-                      ctx.strokeStyle = 'rgba(34, 197, 94, 0.2)';
-                      ctx.lineWidth = 1.5 / globalScale;
-                      ctx.stroke();
-                      ctx.restore();
-                  }}
-                  linkCanvasObjectMode={() => 'replace'}
-                  onNodeClick={handleNodeClick}
+                    ctx.save();
+                    ctx.beginPath();
+                    ctx.moveTo(start.x, start.y);
+                    ctx.lineTo(end.x, end.y);
+                    ctx.strokeStyle = 'rgba(34, 197, 94, 0.2)';
+                    ctx.lineWidth = 1.5 / globalScale;
+                    ctx.stroke();
+
+                    // Draw preview line if dragging
+                    if (dropTarget && draggedNodeRef.current) {
+                        ctx.beginPath();
+                        ctx.moveTo(draggedNodeRef.current.x, draggedNodeRef.current.y);
+                        ctx.lineTo(dropTarget.x, dropTarget.y);
+                        ctx.strokeStyle = '#22c55e';
+                        ctx.lineWidth = 3 / globalScale;
+                        ctx.setLineDash([10 / globalScale, 5 / globalScale]);
+                        ctx.stroke();
+                        ctx.setLineDash([]);
+                    }
+
+                    ctx.restore();
+                }}
+                linkCanvasObjectMode={() => 'replace'}
+                onNodeClick={handleNodeClick}
                 backgroundColor="transparent"
                 warmupTicks={100}
                 cooldownTicks={0}
@@ -289,118 +259,80 @@ export function GraphView({ notes, folders, onNodeClick, onMoveNote, onMoveFolde
                 enableZoomInteraction={true}
                 enablePanInteraction={true}
                 enableNodeDrag={true}
-                  onNodeDrag={(node: any) => {
-                      dragFlagRef.current = true;
-                      
-                      if (!draggedNodeRef.current) return;
+                onNodeDrag={(node: any) => {
+                    dragFlagRef.current = true;
+                    
+                    if (!draggedNodeRef.current) return;
 
-                      // Find closest folder node while dragging
-                      let closestNode: any = null;
-                      let minDistance = 100;
+                    // Find closest folder node
+                    let closestNode: any = null;
+                    let minDistance = 100;
 
-                      const allNodes = graphRef.current?.graphData()?.nodes || [];
-                      allNodes.forEach((n: any) => {
-                          if (n.id === draggedNodeRef.current.id) return;
-                          if (n.type !== 'folder') return;
-                          
-                          const dx = n.x - node.x;
-                          const dy = n.y - node.y;
-                          const distance = Math.sqrt(dx * dx + dy * dy);
+                    const allNodes = graphRef.current?.graphData()?.nodes || [];
+                    allNodes.forEach((n: any) => {
+                        if (n.id === draggedNodeRef.current.id) return;
+                        if (n.type !== 'folder') return;
+                        
+                        const dx = n.x - node.x;
+                        const dy = n.y - node.y;
+                        const distance = Math.sqrt(dx * dx + dy * dy);
 
-                          if (distance < minDistance) {
-                              minDistance = distance;
-                              closestNode = n;
-                          }
-                      });
+                        if (distance < minDistance) {
+                            minDistance = distance;
+                            closestNode = n;
+                        }
+                    });
 
-                      if (closestNode) {
-                          setHoverTarget({ node: closestNode, x: node.x, y: node.y });
-                          drawPreviewLine(node, closestNode);
-                      } else {
-                          setHoverTarget(null);
-                          clearPreviewLine();
-                      }
-                  }}
-                  onNodeDragStart={(node: any) => {
-                      dragFlagRef.current = true;
-                      draggedNodeRef.current = node;
-                      setHoverTarget(null);
-                  }}
-                  nodePointerAreaPaint={(node: any, color: string, ctx: CanvasRenderingContext2D) => {
-                      // Use larger radius for hit area to facilitate dragging and prevent culling
-                      const hitRadius = Math.sqrt((node.val || 1)) * 4;
-                      ctx.fillStyle = color;
-                      ctx.beginPath();
-                      ctx.arc(node.x, node.y, hitRadius, 0, 2 * Math.PI);
-                      ctx.fill();
-                  }}
-                  onNodeHover={(node: any) => {
-                      document.body.style.cursor = node ? 'pointer' : 'grab';
-                  }}
-                  onNodeDragEnd={(node: any) => {
-                      clearPreviewLine();
-                      
-                      setTimeout(() => {
-                          dragFlagRef.current = false;
-                      }, 100);
+                    setDropTarget(closestNode);
+                }}
+                onNodeDragStart={(node: any) => {
+                    dragFlagRef.current = true;
+                    draggedNodeRef.current = node;
+                    setDropTarget(null);
+                }}
+                nodePointerAreaPaint={(node: any, color: string, ctx: CanvasRenderingContext2D) => {
+                    const hitRadius = Math.sqrt((node.val || 1)) * 4;
+                    ctx.fillStyle = color;
+                    ctx.beginPath();
+                    ctx.arc(node.x, node.y, hitRadius, 0, 2 * Math.PI);
+                    ctx.fill();
+                }}
+                onNodeHover={(node: any) => {
+                    document.body.style.cursor = node ? 'pointer' : 'grab';
+                }}
+                onNodeDragEnd={(node: any) => {
+                    setTimeout(() => {
+                        dragFlagRef.current = false;
+                    }, 100);
 
-                      if (node && draggedNodeRef.current) {
-                          node.fx = node.x;
-                          node.fy = node.y;
+                    if (node && draggedNodeRef.current) {
+                        node.fx = node.x;
+                        node.fy = node.y;
 
-                          // Find the closest node to drop on
-                          const draggedNode = draggedNodeRef.current;
-                          let closestNode: any = null;
-                          let minDistance = 100; // Maximum drop distance
+                        const draggedNode = draggedNodeRef.current;
 
-                          graphData.nodes.forEach((n: any) => {
-                              if (n.id === draggedNode.id) return;
-                              
-                              const dx = n.x - node.x;
-                              const dy = n.y - node.y;
-                              const distance = Math.sqrt(dx * dx + dy * dy);
-
-                              if (distance < minDistance) {
-                                  minDistance = distance;
-                                  closestNode = n;
-                              }
-                          });
-
-                          // Handle the drop
-                          if (closestNode && closestNode.type === 'folder') {
-                              if (draggedNode.type === 'note' && onMoveNote) {
-                                  onMoveNote(draggedNode.id, closestNode.id);
-                              } else if (draggedNode.type === 'folder' && onMoveFolder) {
-                                  // Prevent circular references
-                                  if (closestNode.id !== draggedNode.id) {
-                                      onMoveFolder(draggedNode.id, closestNode.id);
-                                  }
-                              }
-                          } else if (!closestNode) {
-                              // Dropped to empty space - move to root
-                              if (draggedNode.type === 'note' && onMoveNote) {
-                                  onMoveNote(draggedNode.id, null);
-                              } else if (draggedNode.type === 'folder' && onMoveFolder) {
-                                  onMoveFolder(draggedNode.id, null);
-                              }
-                          }
-                      }
-                      draggedNodeRef.current = null;
-                      setHoverTarget(null);
-                  }}
-              />
-              <canvas
-                  ref={overlayCanvasRef}
-                  style={{
-                      position: 'absolute',
-                      top: 0,
-                      left: 0,
-                      width: '100%',
-                      height: '100%',
-                      pointerEvents: 'none',
-                      zIndex: 10,
-                  }}
-              />
-          </div>
-      );
-  }
+                        // Use dropTarget if available
+                        if (dropTarget && dropTarget.type === 'folder') {
+                            if (draggedNode.type === 'note' && onMoveNote) {
+                                onMoveNote(draggedNode.id, dropTarget.id);
+                            } else if (draggedNode.type === 'folder' && onMoveFolder) {
+                                if (dropTarget.id !== draggedNode.id) {
+                                    onMoveFolder(draggedNode.id, dropTarget.id);
+                                }
+                            }
+                        } else {
+                            // Dropped to empty space - move to root
+                            if (draggedNode.type === 'note' && onMoveNote) {
+                                onMoveNote(draggedNode.id, null);
+                            } else if (draggedNode.type === 'folder' && onMoveFolder) {
+                                onMoveFolder(draggedNode.id, null);
+                            }
+                        }
+                    }
+                    draggedNodeRef.current = null;
+                    setDropTarget(null);
+                }}
+            />
+        </div>
+    );
+}
