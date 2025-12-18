@@ -249,13 +249,13 @@ export function Notes() {
         });
     };
 
-      const extractParentId = (droppableId: string, type: 'folder' | 'note'): string | null => {
-          const prefix = `${type}-`;
-          if (!droppableId.startsWith(prefix)) return null;
-          const value = droppableId.slice(prefix.length);
-          if (value === 'root' || value === '') return null;
-          return value;
-      };
+    const extractParentId = (droppableId: string, type: 'folder' | 'note'): string | null => {
+        if (droppableId === 'folder-root' || droppableId === 'note-root') return null;
+        
+        const prefix = `${type}-`;
+        if (!droppableId.startsWith(prefix)) return null;
+        return droppableId.slice(prefix.length);
+    };
 
     const isInvalidFolderMove = (folderId: string, targetParentId: string | null) => {
         if (!targetParentId) return false;
@@ -324,7 +324,7 @@ export function Notes() {
                 disableInteractiveElementBlocking={false}
             >
                 {(provided) => (
-                    <div ref={provided.innerRef} {...provided.droppableProps}>
+                    <div ref={provided.innerRef} {...provided.droppableProps} style={{ minHeight: '50px' }}>
                         {subfolders.map((folder, index) => {
                             const isExpanded = expandedFolders.has(folder.id);
                             return (
