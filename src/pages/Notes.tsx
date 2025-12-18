@@ -272,32 +272,60 @@ export function Notes() {
     const handleDragEnd = (result: DropResult) => {
         const { destination, source, draggableId, type } = result;
 
-        if (!destination) return;
-        if (destination.droppableId === source.droppableId && destination.index === source.index) return;
+        console.log('=== DRAG END ===');
+        console.log('Destination:', destination);
+        console.log('Source:', source);
+        console.log('DraggableId:', draggableId);
+        console.log('Type:', type);
+
+        if (!destination) {
+            console.log('No destination - aborting');
+            return;
+        }
+        if (destination.droppableId === source.droppableId && destination.index === source.index) {
+            console.log('Same position - aborting');
+            return;
+        }
 
         if (type === 'folder') {
             const folder = NotesStorage.getFolderById(draggableId);
-            if (!folder) return;
+            if (!folder) {
+                console.log('Folder not found - aborting');
+                return;
+            }
 
             const newParentId = extractParentId(destination.droppableId, 'folder');
-            if (isInvalidFolderMove(draggableId, newParentId)) return;
+            console.log('Old parentId:', folder.parentId);
+            console.log('New parentId:', newParentId);
+
+            if (isInvalidFolderMove(draggableId, newParentId)) {
+                console.log('Invalid folder move (circular) - aborting');
+                return;
+            }
 
             NotesStorage.saveFolder({
                 ...folder,
                 parentId: newParentId,
             });
+            console.log('Folder moved successfully');
             loadData();
         } else if (type === 'note') {
             const note = NotesStorage.getNoteById(draggableId);
-            if (!note) return;
+            if (!note) {
+                console.log('Note not found - aborting');
+                return;
+            }
 
             const newFolderId = extractParentId(destination.droppableId, 'note');
+            console.log('Old folderId:', note.folderId);
+            console.log('New folderId:', newFolderId);
 
             NotesStorage.saveNote({
                 ...note,
                 folderId: newFolderId,
                 updatedAt: Date.now(),
             });
+            console.log('Note moved successfully');
             loadData();
         }
     };
