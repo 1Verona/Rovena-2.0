@@ -27,7 +27,7 @@ const mainNavItems: NavItem[] = [
     { icon: MessageSquare, label: 'Chats', path: '/chats' },
     { icon: Image, label: 'Images', path: '/images' },
     { icon: PenTool, label: 'Canva', path: '/canva' },
-    { icon: FileText, label: 'Notes', path: '/notes' },
+    { icon: FileText, label: 'Notes', path: '/notes', badge: 'Beta' },
     { icon: Archive, label: 'Archives', path: '/archives' },
     { icon: BarChart3, label: 'Charts', path: '/charts' },
     { icon: Presentation, label: 'Presentations', path: '/presentations' },
