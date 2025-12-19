@@ -176,8 +176,18 @@ function App() {
                                         <Route path="/archives" element={<Archives />} />
                                         <Route path="/charts" element={<Charts />} />
                                         <Route path="/presentations" element={<Presentations />} />
-                                        <Route path="/presentations-beta" element={<PresentationsBeta />} />
-                                        <Route path="/browser" element={<Browser />} />
+                                          <Route path="/presentations-beta" element={
+                                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', flexDirection: 'column', gap: '16px' }}>
+                                                  <h2 style={{ color: '#888' }}>🚧 Em Desenvolvimento</h2>
+                                                  <p style={{ color: '#666' }}>Esta funcionalidade está sendo desenvolvida.</p>
+                                              </div>
+                                          } />
+                                          <Route path="/browser" element={
+                                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', flexDirection: 'column', gap: '16px' }}>
+                                                  <h2 style={{ color: '#888' }}>🚧 Em Desenvolvimento</h2>
+                                                  <p style={{ color: '#666' }}>Esta funcionalidade está sendo desenvolvida.</p>
+                                              </div>
+                                          } />
                                         <Route path="/notes" element={<Notes />} />
                                         <Route path="/profile" element={<Profile onProfileUpdate={handleProfileUpdate} />} />
                                         <Route path="/settings" element={

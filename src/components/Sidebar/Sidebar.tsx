@@ -31,8 +31,8 @@ const mainNavItems: NavItem[] = [
     { icon: Archive, label: 'Archives', path: '/archives' },
     { icon: BarChart3, label: 'Charts', path: '/charts' },
     { icon: Presentation, label: 'Presentations', path: '/presentations' },
-    { icon: FlaskConical, label: 'Presentations Gamma', path: '/presentations-beta', badge: 'Beta' },
-    { icon: Globe, label: 'Browser', path: '/browser' },
+    { icon: FlaskConical, label: 'Presentations Gamma', path: '/presentations-beta', badge: 'Em desenvolvimento' },
+    { icon: Globe, label: 'Browser', path: '/browser', badge: 'Em desenvolvimento' },
 ];
 
 const bottomNavItems: NavItem[] = [
