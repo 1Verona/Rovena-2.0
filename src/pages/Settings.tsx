@@ -30,6 +30,7 @@ export function Settings({ userEmail, userPlan, tokensUsed, tokensLimit, subscri
     const [isCanceling, setIsCanceling] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
     const [appVersion, setAppVersion] = useState<string>('');
+    const [platform, setPlatform] = useState<string>('');
     const [updateStatus, setUpdateStatus] = useState<string | null>(null);
     const [downloadProgress, setDownloadProgress] = useState<any>(null);
     const [releaseNotes, setReleaseNotes] = useState<string | null>(null);
@@ -38,11 +39,17 @@ export function Settings({ userEmail, userPlan, tokensUsed, tokensLimit, subscri
     const [fallbackReleaseInfo, setFallbackReleaseInfo] = useState<any>(null);
 
     useEffect(() => {
-        // Get App Version
+        // Get App Version and Platform
         if ((window as any).electronAPI) {
             (window as any).electronAPI.getAppVersion().then((ver: string) => {
                 setAppVersion(ver);
             });
+
+            if ((window as any).electronAPI.getPlatform) {
+                (window as any).electronAPI.getPlatform().then((p: string) => {
+                    setPlatform(p);
+                });
+            }
 
             // Listen for Update Status
             (window as any).electronAPI.onUpdateStatus((status: any) => {
@@ -53,10 +60,6 @@ export function Settings({ userEmail, userPlan, tokensUsed, tokensLimit, subscri
                     setUpdateStatus(`Baixando atualização: ${Math.round(status.data.percent)}%`);
                 } else if (status.text === 'update-available') {
                     const info = status.data;
-                    const skipped = localStorage.getItem('skipped-version');
-                    if (skipped === info.version) {
-                    }
-
                     setUpdateStatus('Nova versão disponível!');
                     setUpdateAvailableInfo(info);
 
@@ -85,8 +88,8 @@ export function Settings({ userEmail, userPlan, tokensUsed, tokensLimit, subscri
                     setUpdateError(error);
                     setDownloadProgress(null);
                     
-                    if (error.includes('command') || error.includes('bundle') || error.includes('ENOENT') || error.includes('spawn')) {
-                        setUpdateStatus('Erro no atualizador automático. Use o download manual abaixo.');
+                    if (error.includes('command') || error.includes('bundle') || error.includes('ENOENT') || error.includes('spawn') || error.includes('code signature')) {
+                        setUpdateStatus('Atualização automática indisponível. Use o download manual.');
                         try {
                             const releaseInfo = await (window as any).electronAPI.getLatestReleaseUrl();
                             if (releaseInfo) {
@@ -103,11 +106,27 @@ export function Settings({ userEmail, userPlan, tokensUsed, tokensLimit, subscri
         }
     }, []);
 
-    const handleCheckUpdates = () => {
+    const handleCheckUpdates = async () => {
         if ((window as any).electronAPI) {
-            setUpdateStatus('Checking for updates...');
+            setUpdateStatus('Verificando atualizações...');
             setReleaseNotes(null);
             setUpdateAvailableInfo(null);
+            setUpdateError(null);
+            setFallbackReleaseInfo(null);
+
+            // Proactively check GitHub API on macOS
+            if (platform === 'darwin') {
+                try {
+                    const latest = await (window as any).electronAPI.getLatestReleaseUrl();
+                    if (latest && latest.version !== `v${appVersion}` && latest.version !== appVersion) {
+                        setFallbackReleaseInfo(latest);
+                        setUpdateStatus('Nova versão detectada (Manual)');
+                    }
+                } catch (e) {
+                    console.error('Manual update check failed:', e);
+                }
+            }
+
             (window as any).electronAPI.checkForUpdates();
         } else {
             alert('Atualizações automáticas disponíveis apenas na versão Desktop.');
@@ -433,19 +452,20 @@ export function Settings({ userEmail, userPlan, tokensUsed, tokensLimit, subscri
                                     </div>
                                 )}
 
-                                {/* Fallback Download quando auto-update falha */}
-                                {updateError && fallbackReleaseInfo && (
-                                    <div style={{ marginTop: 16, padding: 16, background: 'var(--bg-tertiary)', borderRadius: 8, border: '1px solid var(--accent-yellow)' }}>
+                                {/* Fallback Download quando auto-update falha ou no macOS manual */}
+                                {(updateStatus === 'Nova versão detectada (Manual)' || (updateError && fallbackReleaseInfo)) && (
+                                    <div style={{ marginTop: 16, padding: 16, background: 'var(--bg-tertiary)', borderRadius: 8, border: '1px solid var(--accent-blue)' }}>
                                         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-                                            <Download size={18} style={{ color: 'var(--accent-yellow)' }} />
-                                            <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>Download Manual Disponível</span>
+                                            <Download size={18} style={{ color: 'var(--accent-blue)' }} />
+                                            <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>Download Manual (Recomendado para macOS)</span>
                                         </div>
                                         <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: 12 }}>
-                                            O atualizador automático não está funcionando (comum em apps não assinados). 
-                                            Você pode baixar a nova versão manualmente:
+                                            {platform === 'darwin' 
+                                                ? "Como o app ainda não possui certificado assinado no macOS, você deve baixar o novo .dmg, abrir e arrastar para sua pasta de Aplicativos, substituindo a versão atual."
+                                                : "O atualizador automático encontrou um problema. Você pode baixar a nova versão manualmente abaixo."}
                                         </p>
                                         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-                                            {fallbackReleaseInfo.dmgUrl && (
+                                            {fallbackReleaseInfo && fallbackReleaseInfo.dmgUrl && (
                                                 <button
                                                     className="btn btn-primary"
                                                     onClick={() => {
@@ -453,33 +473,21 @@ export function Settings({ userEmail, userPlan, tokensUsed, tokensLimit, subscri
                                                     }}
                                                 >
                                                     <Download size={16} />
-                                                    Baixar .dmg {fallbackReleaseInfo.version}
+                                                    Baixar Rovena {fallbackReleaseInfo.version} (.dmg)
                                                 </button>
                                             )}
-                                            {fallbackReleaseInfo.zipUrl && (
+                                            {fallbackReleaseInfo && fallbackReleaseInfo.releaseUrl && (
                                                 <button
                                                     className="btn btn-secondary"
                                                     onClick={() => {
-                                                        (window as any).electronAPI.openExternalUrl(fallbackReleaseInfo.zipUrl);
+                                                        (window as any).electronAPI.openExternalUrl(fallbackReleaseInfo.releaseUrl);
                                                     }}
                                                 >
-                                                    <Download size={16} />
-                                                    Baixar .zip
+                                                    <ExternalLink size={16} />
+                                                    Ver Notas da Versão
                                                 </button>
                                             )}
-                                            <button
-                                                className="btn btn-secondary"
-                                                onClick={() => {
-                                                    (window as any).electronAPI.openExternalUrl(fallbackReleaseInfo.releaseUrl);
-                                                }}
-                                            >
-                                                <ExternalLink size={16} />
-                                                Ver no GitHub
-                                            </button>
                                         </div>
-                                        <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: 10 }}>
-                                            Após baixar, feche o Rovena e instale a nova versão.
-                                        </p>
                                     </div>
                                 )}
 

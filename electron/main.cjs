@@ -204,6 +204,10 @@ ipcMain.handle('get-app-version', () => {
     return app.getVersion();
 });
 
+ipcMain.handle('get-platform', () => {
+    return process.platform;
+});
+
 ipcMain.handle('check-for-updates', async () => {
     try {
         await autoUpdater.checkForUpdates();
