@@ -555,7 +555,10 @@ export function Notes() {
                                 onNodeClick={(nodeId, type) => {
                                     if (type === 'note') {
                                         const note = NotesStorage.getNoteById(nodeId);
-                                        if (note) setSelectedNote(note);
+                                        if (note) {
+                                            setSelectedNote(note);
+                                            setViewMode('list');
+                                        }
                                     } else {
                                         setSelectedFolder(nodeId);
                                         setViewMode('list');
