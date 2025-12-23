@@ -264,7 +264,7 @@ export function Notes() {
 
     const extractParentId = (droppableId: string, type: 'folder' | 'note'): string | null => {
         if (droppableId === 'folder-root' || droppableId === 'note-root') return null;
-        
+
         const prefix = `${type}-`;
         if (!droppableId.startsWith(prefix)) return null;
         return droppableId.slice(prefix.length);
@@ -362,7 +362,7 @@ export function Notes() {
                 isDropDisabled={false}
                 isCombineEnabled={false}
                 ignoreContainerClipping={false}
-                disableInteractiveElementBlocking={false}
+
             >
                 {(provided) => (
                     <div ref={provided.innerRef} {...provided.droppableProps} style={{ minHeight: '50px' }}>
@@ -380,9 +380,8 @@ export function Notes() {
                                             }}
                                         >
                                             <div
-                                                className={`folder-item ${selectedFolder === folder.id ? 'selected' : ''} ${
-                                                    snapshot.isDragging ? 'dragging' : ''
-                                                }`}
+                                                className={`folder-item ${selectedFolder === folder.id ? 'selected' : ''} ${snapshot.isDragging ? 'dragging' : ''
+                                                    }`}
                                                 onClick={() => setSelectedFolder(folder.id)}
                                             >
                                                 <div {...provided.dragHandleProps} className="drag-handle">
@@ -398,29 +397,29 @@ export function Notes() {
                                                     {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
                                                 </button>
                                                 <FolderIcon size={16} />
-                                            <span className="folder-name">{folder.name}</span>
-                                            <div className="folder-actions">
-                                                {folder.parentId && (
+                                                <span className="folder-name">{folder.name}</span>
+                                                <div className="folder-actions">
+                                                    {folder.parentId && (
+                                                        <button
+                                                            onClick={(e) => handleMoveFolderToRoot(folder.id, e)}
+                                                            title="Mover para raiz"
+                                                        >
+                                                            <ArrowUpToLine size={12} />
+                                                        </button>
+                                                    )}
                                                     <button
-                                                        onClick={(e) => handleMoveFolderToRoot(folder.id, e)}
-                                                        title="Mover para raiz"
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            setRenameTarget({ type: 'folder', id: folder.id, name: folder.name });
+                                                            setShowRenameModal(true);
+                                                        }}
                                                     >
-                                                        <ArrowUpToLine size={12} />
+                                                        <Edit2 size={12} />
                                                     </button>
-                                                )}
-                                                <button
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        setRenameTarget({ type: 'folder', id: folder.id, name: folder.name });
-                                                        setShowRenameModal(true);
-                                                    }}
-                                                >
-                                                    <Edit2 size={12} />
-                                                </button>
-                                                <button onClick={(e) => handleDeleteFolder(folder.id, e)}>
-                                                    <Trash2 size={12} />
-                                                </button>
-                                            </div>
+                                                    <button onClick={(e) => handleDeleteFolder(folder.id, e)}>
+                                                        <Trash2 size={12} />
+                                                    </button>
+                                                </div>
                                             </div>
                                             {isExpanded && renderFolderTree(folder.id, level + 1)}
                                         </div>
@@ -435,7 +434,7 @@ export function Notes() {
                             isDropDisabled={false}
                             isCombineEnabled={false}
                             ignoreContainerClipping={false}
-                            disableInteractiveElementBlocking={false}
+
                         >
                             {(provided) => (
                                 <div ref={provided.innerRef} {...provided.droppableProps}>
@@ -445,9 +444,8 @@ export function Notes() {
                                                 <div
                                                     ref={provided.innerRef}
                                                     {...provided.draggableProps}
-                                                    className={`note-item ${selectedNote?.id === note.id ? 'selected' : ''} ${
-                                                        snapshot.isDragging ? 'dragging' : ''
-                                                    }`}
+                                                    className={`note-item ${selectedNote?.id === note.id ? 'selected' : ''} ${snapshot.isDragging ? 'dragging' : ''
+                                                        }`}
                                                     style={{
                                                         marginLeft: level * 16 + 16,
                                                         ...provided.draggableProps.style,
@@ -493,38 +491,38 @@ export function Notes() {
         <div className="notes-page page-content">
             <div className="notes-container">
                 <div className="notes-sidebar">
-                      <div className="sidebar-header">
-                          <h2>Notas</h2>
-                          <div className="sidebar-actions">
-                              <button
-                                  className={`icon-btn ${viewMode === 'list' ? 'active' : ''}`}
-                                  onClick={() => setViewMode('list')}
-                                  title="Visualização em lista"
-                              >
-                                  <List size={18} />
-                              </button>
-                              <button
-                                  className={`icon-btn ${viewMode === 'graph' ? 'active' : ''}`}
-                                  onClick={() => setViewMode('graph')}
-                                  title="Visualização em grafo"
-                              >
-                                  <Network size={18} />
-                              </button>
-                              <button
-                                  className="icon-btn"
-                                  onClick={() => {
-                                      setNewNoteTitle(DEFAULT_NOTE_TITLE);
-                                      setShowNewNoteModal(true);
-                                  }}
-                                  title="Nova nota"
-                              >
-                                  <FilePlus size={18} />
-                              </button>
-                              <button className="icon-btn" onClick={() => setShowNewFolderModal(true)} title="Nova pasta">
-                                  <FolderPlus size={18} />
-                              </button>
-                          </div>
-                      </div>
+                    <div className="sidebar-header">
+                        <h2>Notas</h2>
+                        <div className="sidebar-actions">
+                            <button
+                                className={`icon-btn ${viewMode === 'list' ? 'active' : ''}`}
+                                onClick={() => setViewMode('list')}
+                                title="Visualização em lista"
+                            >
+                                <List size={18} />
+                            </button>
+                            <button
+                                className={`icon-btn ${viewMode === 'graph' ? 'active' : ''}`}
+                                onClick={() => setViewMode('graph')}
+                                title="Visualização em grafo"
+                            >
+                                <Network size={18} />
+                            </button>
+                            <button
+                                className="icon-btn"
+                                onClick={() => {
+                                    setNewNoteTitle(DEFAULT_NOTE_TITLE);
+                                    setShowNewNoteModal(true);
+                                }}
+                                title="Nova nota"
+                            >
+                                <FilePlus size={18} />
+                            </button>
+                            <button className="icon-btn" onClick={() => setShowNewFolderModal(true)} title="Nova pasta">
+                                <FolderPlus size={18} />
+                            </button>
+                        </div>
+                    </div>
 
                     <div className="search-bar">
                         <Search size={16} />
@@ -541,120 +539,120 @@ export function Notes() {
                         )}
                     </div>
 
-                        <DragDropContext onDragEnd={handleDragEnd}>
-                            <div className="notes-tree">{renderFolderTree(null)}</div>
-                        </DragDropContext>
-                    </div>
+                    <DragDropContext onDragEnd={handleDragEnd}>
+                        <div className="notes-tree">{renderFolderTree(null)}</div>
+                    </DragDropContext>
+                </div>
 
 
-                    <div className="notes-content">
-                        {viewMode === 'graph' ? (
-                            <GraphView
-                                notes={NotesStorage.getNotes()}
-                                folders={NotesStorage.getFolders()}
-                                onNodeClick={(nodeId, type) => {
-                                    if (type === 'note') {
-                                        const note = NotesStorage.getNoteById(nodeId);
-                                        if (note) {
-                                            setSelectedNote(note);
-                                            setViewMode('list');
-                                        }
-                                    } else {
-                                        setSelectedFolder(nodeId);
+                <div className="notes-content">
+                    {viewMode === 'graph' ? (
+                        <GraphView
+                            notes={NotesStorage.getNotes()}
+                            folders={NotesStorage.getFolders()}
+                            onNodeClick={(nodeId, type) => {
+                                if (type === 'note') {
+                                    const note = NotesStorage.getNoteById(nodeId);
+                                    if (note) {
+                                        setSelectedNote(note);
                                         setViewMode('list');
                                     }
-                                }}
-                            />
-                        ) : selectedNote ? (
-                          <div className="note-editor-wrapper">
-                              <div className="note-tags-section">
-                                  <div className="tags-list">
-                                      {selectedNote.tags.map((tag, index) => (
-                                          <span key={index} className="tag-item">
-                                              <Tag size={12} />
-                                              {tag}
-                                              <button
-                                                  className="tag-remove"
-                                                  onClick={() => {
-                                                      const updatedTags = selectedNote.tags.filter((_, i) => i !== index);
-                                                      const updatedNote = {
-                                                          ...selectedNote,
-                                                          tags: updatedTags,
-                                                          updatedAt: Date.now(),
-                                                      };
-                                                      NotesStorage.saveNote(updatedNote);
-                                                      setSelectedNote(updatedNote);
-                                                      loadData();
-                                                  }}
-                                              >
-                                                  <X size={12} />
-                                              </button>
-                                          </span>
-                                      ))}
-                                  </div>
-                                  <input
-                                      type="text"
-                                      value={tagInput}
-                                      onChange={(e) => setTagInput(e.target.value)}
-                                      placeholder="Digite uma tag e pressione Enter..."
-                                      className="tag-input"
-                                      onKeyDown={(e) => {
-                                          if (e.key === 'Enter' && tagInput.trim()) {
-                                              e.preventDefault();
-                                              if (!selectedNote.tags.includes(tagInput.trim())) {
-                                                  const updatedTags = [...selectedNote.tags, tagInput.trim()];
-                                                  const updatedNote = {
-                                                      ...selectedNote,
-                                                      tags: updatedTags,
-                                                      updatedAt: Date.now(),
-                                                  };
-                                                  NotesStorage.saveNote(updatedNote);
-                                                  setSelectedNote(updatedNote);
-                                                  loadData();
-                                              }
-                                              setTagInput('');
-                                          }
-                                      }}
-                                  />
-                              </div>
-                              <TiptapEditor
-                                  key={selectedNote.id}
-                                  content={selectedNote.content}
-                                  onChange={(content) => {
-                                      const newTitle = extractTitleFromContent(content, selectedNote.title || DEFAULT_NOTE_TITLE);
-                                      const updatedNote = {
-                                          ...selectedNote,
-                                          title: newTitle,
-                                          content,
-                                          updatedAt: Date.now(),
-                                      };
-                                      NotesStorage.saveNote(updatedNote);
-                                      setSelectedNote(updatedNote);
-                                      loadData();
+                                } else {
+                                    setSelectedFolder(nodeId);
+                                    setViewMode('list');
+                                }
+                            }}
+                        />
+                    ) : selectedNote ? (
+                        <div className="note-editor-wrapper">
+                            <div className="note-tags-section">
+                                <div className="tags-list">
+                                    {selectedNote.tags.map((tag, index) => (
+                                        <span key={index} className="tag-item">
+                                            <Tag size={12} />
+                                            {tag}
+                                            <button
+                                                className="tag-remove"
+                                                onClick={() => {
+                                                    const updatedTags = selectedNote.tags.filter((_, i) => i !== index);
+                                                    const updatedNote = {
+                                                        ...selectedNote,
+                                                        tags: updatedTags,
+                                                        updatedAt: Date.now(),
+                                                    };
+                                                    NotesStorage.saveNote(updatedNote);
+                                                    setSelectedNote(updatedNote);
+                                                    loadData();
+                                                }}
+                                            >
+                                                <X size={12} />
+                                            </button>
+                                        </span>
+                                    ))}
+                                </div>
+                                <input
+                                    type="text"
+                                    value={tagInput}
+                                    onChange={(e) => setTagInput(e.target.value)}
+                                    placeholder="Digite uma tag e pressione Enter..."
+                                    className="tag-input"
+                                    onKeyDown={(e) => {
+                                        if (e.key === 'Enter' && tagInput.trim()) {
+                                            e.preventDefault();
+                                            if (!selectedNote.tags.includes(tagInput.trim())) {
+                                                const updatedTags = [...selectedNote.tags, tagInput.trim()];
+                                                const updatedNote = {
+                                                    ...selectedNote,
+                                                    tags: updatedTags,
+                                                    updatedAt: Date.now(),
+                                                };
+                                                NotesStorage.saveNote(updatedNote);
+                                                setSelectedNote(updatedNote);
+                                                loadData();
+                                            }
+                                            setTagInput('');
+                                        }
                                     }}
                                 />
                             </div>
-                        ) : (
-                            <div className="empty-state">
-                                <FileText size={64} />
-                                <h2>Nenhuma nota selecionada</h2>
-                                <p>Selecione uma nota ou crie uma nova para começar</p>
-                                <button
-                                    className="btn btn-primary"
-                                    onClick={() => {
-                                        setNewNoteTitle(DEFAULT_NOTE_TITLE);
-                                        setShowNewNoteModal(true);
-                                    }}
-                                >
-                                    <FilePlus size={16} /> Criar Nova Nota
-                                </button>
-                            </div>
-                          )}
-                      </div>
-              </div>
+                            <TiptapEditor
+                                key={selectedNote.id}
+                                content={selectedNote.content}
+                                onChange={(content) => {
+                                    const newTitle = extractTitleFromContent(content, selectedNote.title || DEFAULT_NOTE_TITLE);
+                                    const updatedNote = {
+                                        ...selectedNote,
+                                        title: newTitle,
+                                        content,
+                                        updatedAt: Date.now(),
+                                    };
+                                    NotesStorage.saveNote(updatedNote);
+                                    setSelectedNote(updatedNote);
+                                    loadData();
+                                }}
+                            />
+                        </div>
+                    ) : (
+                        <div className="empty-state">
+                            <FileText size={64} />
+                            <h2>Nenhuma nota selecionada</h2>
+                            <p>Selecione uma nota ou crie uma nova para começar</p>
+                            <button
+                                className="btn btn-primary"
+                                onClick={() => {
+                                    setNewNoteTitle(DEFAULT_NOTE_TITLE);
+                                    setShowNewNoteModal(true);
+                                }}
+                            >
+                                <FilePlus size={16} /> Criar Nova Nota
+                            </button>
+                        </div>
+                    )}
+                </div>
+            </div>
 
 
-              <Modal
+            <Modal
                 isOpen={showNewNoteModal}
                 onClose={() => {
                     setShowNewNoteModal(false);

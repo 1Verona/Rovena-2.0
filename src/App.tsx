@@ -22,8 +22,7 @@ const Canva = lazy(() => import('./pages/Canva').then(module => ({ default: modu
 const Archives = lazy(() => import('./pages/Archives').then(module => ({ default: module.Archives })));
 const Charts = lazy(() => import('./pages/Charts').then(module => ({ default: module.Charts })));
 const Presentations = lazy(() => import('./pages/Presentations').then(module => ({ default: module.Presentations })));
-const PresentationsBeta = lazy(() => import('./pages/PresentationsBeta').then(module => ({ default: module.PresentationsBeta })));
-const Browser = lazy(() => import('./pages/Browser').then(module => ({ default: module.Browser })));
+
 const Settings = lazy(() => import('./pages/Settings').then(module => ({ default: module.Settings })));
 const Profile = lazy(() => import('./pages/Profile').then(module => ({ default: module.Profile })));
 const Notes = lazy(() => import('./pages/Notes').then(module => ({ default: module.Notes })));
@@ -176,18 +175,18 @@ function App() {
                                         <Route path="/archives" element={<Archives />} />
                                         <Route path="/charts" element={<Charts />} />
                                         <Route path="/presentations" element={<Presentations />} />
-                                          <Route path="/presentations-beta" element={
-                                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', flexDirection: 'column', gap: '16px' }}>
-                                                  <h2 style={{ color: '#888' }}>🚧 Em Desenvolvimento</h2>
-                                                  <p style={{ color: '#666' }}>Esta funcionalidade está sendo desenvolvida.</p>
-                                              </div>
-                                          } />
-                                          <Route path="/browser" element={
-                                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', flexDirection: 'column', gap: '16px' }}>
-                                                  <h2 style={{ color: '#888' }}>🚧 Em Desenvolvimento</h2>
-                                                  <p style={{ color: '#666' }}>Esta funcionalidade está sendo desenvolvida.</p>
-                                              </div>
-                                          } />
+                                        <Route path="/presentations-beta" element={
+                                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', flexDirection: 'column', gap: '16px' }}>
+                                                <h2 style={{ color: '#888' }}>🚧 Em Desenvolvimento</h2>
+                                                <p style={{ color: '#666' }}>Esta funcionalidade está sendo desenvolvida.</p>
+                                            </div>
+                                        } />
+                                        <Route path="/browser" element={
+                                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', flexDirection: 'column', gap: '16px' }}>
+                                                <h2 style={{ color: '#888' }}>🚧 Em Desenvolvimento</h2>
+                                                <p style={{ color: '#666' }}>Esta funcionalidade está sendo desenvolvida.</p>
+                                            </div>
+                                        } />
                                         <Route path="/notes" element={<Notes />} />
                                         <Route path="/profile" element={<Profile onProfileUpdate={handleProfileUpdate} />} />
                                         <Route path="/settings" element={

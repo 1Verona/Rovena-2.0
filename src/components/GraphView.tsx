@@ -29,7 +29,7 @@ interface GraphViewProps {
 }
 
 export function GraphView({ notes, folders, onNodeClick }: GraphViewProps) {
-    const graphRef = useRef<any>();
+    const graphRef = useRef<any>(null);
     const containerRef = useRef<HTMLDivElement>(null);
     const dragFlagRef = useRef(false);
     const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
@@ -112,8 +112,8 @@ export function GraphView({ notes, folders, onNodeClick }: GraphViewProps) {
     useEffect(() => {
         if (!graphRef.current) return;
 
-        const collideForce = forceCollide<GraphNode>()
-            .radius((node) => Math.max(18, Math.sqrt(node.val || 1) * 4))
+        const collideForce = forceCollide()
+            .radius((node: any) => Math.max(18, Math.sqrt(node.val || 1) * 4))
             .strength(1);
 
         graphRef.current.d3Force('charge').strength(-320);
@@ -143,14 +143,14 @@ export function GraphView({ notes, folders, onNodeClick }: GraphViewProps) {
                 nodeCanvasObject={(node: any, ctx: CanvasRenderingContext2D, globalScale: number) => {
                     const x = node.x;
                     const y = node.y;
-                    
+
                     if (typeof x !== 'number' || typeof y !== 'number' || !Number.isFinite(x) || !Number.isFinite(y)) {
                         return;
                     }
 
                     const label = node.name || '';
                     const fontSize = 14 / globalScale;
-                    
+
                     // Use fixed visual sizes regardless of the large physics 'val' used for culling protection
                     const visualRadius = node.type === 'folder' ? 12 : 7;
 
@@ -188,7 +188,7 @@ export function GraphView({ notes, folders, onNodeClick }: GraphViewProps) {
                     ctx.textBaseline = 'middle';
 
                     const textY = y + visualRadius + fontSize + 4 / globalScale;
-                    
+
                     // Text shadow for readability
                     ctx.fillStyle = 'rgba(0, 0, 0, 0.9)';
                     ctx.fillText(label, x + 1 / globalScale, textY + 1 / globalScale);
@@ -217,9 +217,7 @@ export function GraphView({ notes, folders, onNodeClick }: GraphViewProps) {
                 onNodeDrag={() => {
                     dragFlagRef.current = true;
                 }}
-                onNodeDragStart={() => {
-                    dragFlagRef.current = true;
-                }}
+
                 nodePointerAreaPaint={(node: any, color: string, ctx: CanvasRenderingContext2D) => {
                     // Use larger radius for hit area to facilitate dragging and prevent culling
                     const hitRadius = Math.sqrt((node.val || 1)) * 4;
